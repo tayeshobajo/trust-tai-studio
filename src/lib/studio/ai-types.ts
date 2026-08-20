@@ -74,7 +74,7 @@ export interface SceneDirection {
   /** Persisted `public.scenes.id`, when this scene came from the database. */
   sceneId?: UUID | null;
   /** Short scene title, as the director names it. */
-  title?: string;
+  title?: string | undefined;
   narrativePurpose: string;
   emotion: string;
   characterRefs: string[];
@@ -95,7 +95,7 @@ export interface SceneDirection {
   requiredAssetType: AssetKind;
   continuityNotes: string;
   /** What the director wants the audience to know, withhold, or feel here. */
-  directorNotes?: string;
+  directorNotes?: string | undefined;
   status?: SceneStatus;
 }
 
