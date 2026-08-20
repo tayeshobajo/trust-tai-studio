@@ -126,6 +126,8 @@ export interface GenerationTask {
   provenance: GenerationProvenance;
   status: "queued" | "running" | "succeeded" | "failed";
   outputUrl: string | null;
+  /** Safe, provider-supplied reason when a task settles as failed. */
+  failureReason?: string | null;
 }
 
 export interface GenerateImageRequest {
