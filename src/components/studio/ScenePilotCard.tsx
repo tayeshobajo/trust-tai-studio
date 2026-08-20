@@ -6,10 +6,11 @@
  * `studio-assets` bucket, which is why approval stays disabled here.
  */
 
-import { AlertCircle, Clapperboard, Film, ImageIcon, Loader2, Sparkles } from "lucide-react";
+import { AlertCircle, Clapperboard, Film, ImageIcon, Loader2, Sparkles, XCircle } from "lucide-react";
 
 import type { DirectorPlan, SceneDirection, SceneStatus } from "@/lib/studio/ai-types";
 import { emptyScene, type PilotTrack, type ScenePilotState } from "@/lib/studio/pilot-store";
+import { GenerationTimeline } from "@/components/studio/GenerationTimeline";
 import { cn } from "@/lib/utils";
 
 const phaseCopy = {
@@ -55,12 +56,14 @@ function ReviewActions({
   sceneNumber,
   kind,
   onApprove,
+  onReject,
   onRequestChanges,
 }: {
   track: PilotTrack;
   sceneNumber: number;
   kind: "image" | "video";
   onApprove: (sceneNumber: number, kind: "image" | "video") => void;
+  onReject: (sceneNumber: number, kind: "image" | "video") => void;
   onRequestChanges: (sceneNumber: number, kind: "image" | "video") => void;
 }) {
   const ready = track.durable && Boolean(track.assetId);
@@ -95,8 +98,24 @@ function ReviewActions({
         <Clapperboard className="size-3.5" strokeWidth={1.8} />
         Request changes
       </button>
+      <button
+        type="button"
+        disabled={!track.assetId || saving}
+        title={
+          track.assetId
+            ? "Reject this asset — the scene goes back to ready to generate"
+            : blockedReason
+        }
+        onClick={() => onReject(sceneNumber, kind)}
+        className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <XCircle className="size-3.5" strokeWidth={1.8} />
+        {track.review.phase === "rejected" ? "Rejected" : "Reject"}
+      </button>
       <span className="text-[12px] text-muted-foreground">
-        {track.review.phase === "approved"
+        {track.review.phase === "rejected"
+          ? "Rejected · asset marked out and the scene is back to ready to generate."
+          : track.review.phase === "approved"
           ? "Recorded as canon in the Active World."
           : track.review.phase === "changes_requested"
             ? "Feedback saved to the World's creative memory · scene back for another pass."
@@ -119,6 +138,7 @@ export function ScenePilotCard({
   onGenerateImage,
   onAnimate,
   onApprove,
+  onReject,
   onRequestChanges,
 }: {
   scene: SceneDirection;
@@ -129,6 +149,7 @@ export function ScenePilotCard({
   onGenerateImage: (scene: SceneDirection) => void;
   onAnimate: (scene: SceneDirection) => void;
   onApprove: (sceneNumber: number, kind: "image" | "video") => void;
+  onReject: (sceneNumber: number, kind: "image" | "video") => void;
   onRequestChanges: (sceneNumber: number, kind: "image" | "video") => void;
 }) {
   const state = pilot ?? emptyScene(scene.sceneNumber);
@@ -209,6 +230,8 @@ export function ScenePilotCard({
           )}
         </div>
 
+        <GenerationTimeline track={image} label="Storyboard image" />
+
         {image.error ? (
           <div className="mt-3 flex gap-3 rounded-lg border border-warning/30 bg-warning/5 p-3 text-[13px]">
             <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" strokeWidth={2} />
@@ -237,6 +260,7 @@ export function ScenePilotCard({
             sceneNumber={scene.sceneNumber}
             kind="image"
             onApprove={onApprove}
+            onReject={onReject}
             onRequestChanges={onRequestChanges}
           />
           </>
@@ -267,6 +291,8 @@ export function ScenePilotCard({
             </span>
           </div>
 
+          <GenerationTimeline track={video} label="Scene animation" />
+
           {video.error ? (
             <div className="mt-3 flex gap-3 rounded-lg border border-warning/30 bg-warning/5 p-3 text-[13px]">
               <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" strokeWidth={2} />
@@ -296,6 +322,7 @@ export function ScenePilotCard({
               sceneNumber={scene.sceneNumber}
               kind="video"
               onApprove={onApprove}
+              onReject={onReject}
               onRequestChanges={onRequestChanges}
             />
             </>
