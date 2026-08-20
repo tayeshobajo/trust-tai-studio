@@ -249,6 +249,36 @@ export const openAIStudioAIProvider: StudioAIProvider = {
       ? { ok: true, data: result.data as DirectorPlan }
       : (result as ServiceResult<DirectorPlan>);
   },
+
+  async directAsset(input) {
+    const apiKey = process.env["OPENAI_API_KEY"];
+    if (!apiKey) return notConfigured<AssetDirection>();
+
+    const user = [
+      worldPreamble(input.world),
+      `Story: ${input.storyTitle ?? "Untitled"}${
+        input.sceneNumber != null ? ` · Scene ${input.sceneNumber}` : ""
+      } · ${input.assetType}.`,
+      input.scenePrompt
+        ? `The direction this frame was made from:\n${input.scenePrompt.slice(0, 2000)}`
+        : "No scene direction was recorded for this frame.",
+      input.priorFeedback.length
+        ? `What the World has already learned here:\n- ${input.priorFeedback.slice(0, 6).join("\n- ")}`
+        : "No creative memory exists for this frame yet.",
+      "Give the first creative direction on this piece of work. Be specific and restrained; no praise, no marketing language.",
+    ].join("\n\n");
+
+    const result = await callOpenAI(
+      apiKey,
+      ASSET_DIRECTION_SYSTEM,
+      user,
+      "asset_direction",
+      assetDirectionSchema,
+    );
+    return result.ok
+      ? { ok: true, data: result.data as AssetDirection }
+      : (result as ServiceResult<AssetDirection>);
+  },
 };
 
 /** Single swap point for the Studio AI brain. */
