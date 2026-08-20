@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   Paperclip,
@@ -18,7 +18,6 @@ import {
   Circle,
   Check,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
 import {
@@ -102,11 +101,6 @@ function StatusLine({ story }: { story: Story }) {
 function StudioHome() {
   const [draft, setDraft] = useState("");
 
-  const notReady = (what: string) =>
-    toast(`${what} is not connected yet.`, {
-      description: "Studio AI and the production engine arrive in the next pass.",
-    });
-
   return (
     <SuiteShell>
       <div className="wash-royal">
@@ -151,25 +145,23 @@ function StudioHome() {
 
             <div className="mt-6 flex flex-wrap items-center gap-2">
               {sourceActions.map(({ icon: Icon, label }) => (
-                <button
+                <Link
                   key={label}
-                  type="button"
-                  onClick={() => notReady(label)}
+                  to="/create"
                   className="inline-flex h-11 items-center gap-2 rounded-full border border-border px-4 text-sm text-foreground/85 transition-colors hover:bg-secondary"
                 >
                   <Icon className="size-4" strokeWidth={1.75} />
                   {label}
-                </button>
+                </Link>
               ))}
 
-              <button
-                type="button"
-                onClick={() => notReady("Studio AI")}
+              <Link
+                to="/create"
                 className="ml-auto inline-flex h-12 items-center gap-2 rounded-full bg-primary px-6 text-sm font-medium text-primary-foreground transition-transform duration-200 hover:-translate-y-0.5"
               >
                 <Sparkles className="size-4" strokeWidth={1.75} />
                 Create with Studio AI
-              </button>
+              </Link>
             </div>
           </section>
 
@@ -184,10 +176,9 @@ function StudioHome() {
               </div>
               <div className="grid flex-1 grid-cols-1 gap-px overflow-hidden rounded-xl bg-border sm:grid-cols-2 lg:grid-cols-5">
                 {quickOutputs.map(({ icon: Icon, label, hint }) => (
-                  <button
+                  <Link
                     key={label}
-                    type="button"
-                    onClick={() => notReady(label)}
+                    to="/create"
                     className="flex items-center gap-3 bg-card px-4 py-3 text-left transition-colors hover:bg-secondary"
                   >
                     <Icon className="size-5 text-royal" strokeWidth={1.6} />
@@ -197,7 +188,7 @@ function StudioHome() {
                         {hint}
                       </span>
                     </span>
-                  </button>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -212,13 +203,12 @@ function StudioHome() {
                   Stories we&rsquo;re building, directing, and refining.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => notReady("In Production")}
+              <Link
+                to="/production"
                 className="inline-flex items-center gap-1 text-sm text-foreground/80 hover:text-royal"
               >
                 View all <ChevronRight className="size-4" />
-              </button>
+              </Link>
             </div>
 
             <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
@@ -264,23 +254,15 @@ function StudioHome() {
                     Opportunities other Trust Tai rooms surfaced. Read-only.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => notReady("Suite signals")}
-                  className="inline-flex items-center gap-1 text-sm text-foreground/80 hover:text-royal"
-                >
-                  View all <ChevronRight className="size-4" />
-                </button>
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  Read-only
+                </span>
               </div>
 
               <ul className="mt-5 divide-y divide-border border-t border-border">
                 {suiteSignals.map((signal) => (
                   <li key={signal.id}>
-                    <button
-                      type="button"
-                      onClick={() => notReady("Suite signals")}
-                      className="flex w-full items-center gap-4 py-4 text-left transition-colors hover:bg-secondary/60"
-                    >
+                    <div className="flex w-full items-center gap-4 py-4 text-left">
                       <div className="min-w-0 flex-1">
                         <div className="eyebrow">{signal.source}</div>
                         <div className="mt-0.5 truncate text-sm font-medium">{signal.title}</div>
@@ -291,8 +273,7 @@ function StudioHome() {
                       <span className="font-mono text-[11px] text-muted-foreground">
                         {signal.room}
                       </span>
-                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                    </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -323,16 +304,15 @@ function StudioHome() {
                     </li>
                   ))}
                 </ul>
-                <button
-                  type="button"
-                  onClick={() => notReady("Approvals")}
+                <Link
+                  to="/approvals"
                   className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-full border border-border text-sm font-medium transition-colors hover:bg-secondary"
                 >
                   View approvals
                   <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[10px] text-warning">
                     3
                   </span>
-                </button>
+                </Link>
               </div>
 
               {/* Active World */}
@@ -352,13 +332,12 @@ function StudioHome() {
                   <p className="mt-1 font-mono text-[11px] text-muted-foreground">
                     {activeWorld.canon}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => notReady("World")}
+                  <Link
+                    to="/world"
                     className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-royal hover:underline"
                   >
                     View World <ChevronRight className="size-4" />
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>
