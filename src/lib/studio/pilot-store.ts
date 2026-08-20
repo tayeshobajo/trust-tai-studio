@@ -20,12 +20,26 @@ export interface PilotTrack {
   previewUrl: string | null;
   /** Set once the output has been copied into `studio-assets`. */
   storagePath: string | null;
+  /** True only when the bytes are in Studio storage, not just the provider. */
+  durable: boolean;
+  /** Short-lived signed URL from Studio storage; prefer it over previewUrl. */
+  durableUrl: string | null;
+  /** Honest reason durability has not happened yet. */
+  durabilityNote: string | null;
+  /** Review state for this track (approvals + creative feedback). */
+  review: PilotReview;
   /** Asset row id in `public.assets`, when the server could record it. */
   assetId: string | null;
   persisted: boolean;
   error: { code: string; message: string } | null;
   startedAt: string | null;
   completedAt: string | null;
+}
+
+export interface PilotReview {
+  phase: "idle" | "saving" | "approved" | "changes_requested" | "failed";
+  note: string | null;
+  error: string | null;
 }
 
 export interface ScenePilotState {
@@ -46,6 +60,10 @@ export const emptyTrack: PilotTrack = {
   taskId: null,
   previewUrl: null,
   storagePath: null,
+  durable: false,
+  durableUrl: null,
+  durabilityNote: null,
+  review: { phase: "idle", note: null, error: null },
   assetId: null,
   persisted: false,
   error: null,
