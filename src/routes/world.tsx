@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { BookOpen, Palette, Film, Lock } from "lucide-react";
+import { BookOpen, Palette, Film, Lock, UploadCloud, ShieldCheck } from "lucide-react";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
 import {
