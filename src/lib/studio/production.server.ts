@@ -244,14 +244,14 @@ export async function recordGenerationProgress(
   return {
     task,
     assetId: assetRow["id"] as UUID,
-    assetStatus,
+    assetStatus: rowStatus,
     persisted: true,
     persistenceNote: null,
     sceneStatus,
     storyStatus,
-    durable: Boolean(storagePath),
-    storagePath,
+    durable: Boolean(durablePath),
+    storagePath: durablePath,
     durableUrl,
-    durabilityNote: storagePath ? null : durabilityNote,
+    durabilityNote: durablePath ? null : durabilityNote,
   };
 }
