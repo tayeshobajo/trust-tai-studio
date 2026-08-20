@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Clapperboard, ChevronRight, ArrowDown } from "lucide-react";
+import { Clapperboard, ChevronRight, ArrowDown, Loader2, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
 import { formatLabels, inProduction, statusLabels } from "@/lib/studio-data";
 import { planStore, type StoredPlan } from "@/lib/studio/plan-store";
 import type { SceneStatus } from "@/lib/studio/ai-types";
+import { useSceneGeneration, type SceneRun } from "@/lib/studio/use-scene-generation";
 import { cn } from "@/lib/utils";
 
 const sceneStatusLabels: Record<SceneStatus, string> = {
@@ -16,8 +17,18 @@ const sceneStatusLabels: Record<SceneStatus, string> = {
   approved: "Approved",
 };
 
+const runLabels: Record<SceneRun["phase"], string> = {
+  idle: "",
+  submitting: "Sending to the production engine…",
+  running: "Rendering…",
+  succeeded: "Render complete",
+  failed: "Render failed",
+};
+
 function DirectorPlanPanel({ stored }: { stored: StoredPlan }) {
   const { plan, discovery } = stored;
+  const { runs, start } = useSceneGeneration(plan, plan.storyId ?? null);
+
   return (
     <section className="mt-10 rounded-2xl border border-border bg-card p-6 shadow-tt lg:p-8">
       <div className="eyebrow flex items-center gap-2">
@@ -42,7 +53,13 @@ function DirectorPlanPanel({ stored }: { stored: StoredPlan }) {
 
       <ol className="mt-8 space-y-3">
         {plan.scenes.map((scene, i) => {
-          const status: SceneStatus = scene.status ?? "planned";
+          const run = runs[scene.sceneNumber];
+          const busy = run?.phase === "submitting" || run?.phase === "running";
+          const status: SceneStatus = busy
+            ? "generating"
+            : run?.phase === "succeeded"
+              ? "review"
+              : (scene.status ?? "planned");
           const prev = plan.scenes[i - 1];
           const next = plan.scenes[i + 1];
           return (
@@ -55,7 +72,7 @@ function DirectorPlanPanel({ stored }: { stored: StoredPlan }) {
                   <span
                     className={cn(
                       "rounded-full px-2.5 py-0.5 text-[11px]",
-                      status === "approved"
+                      status === "approved" || status === "review"
                         ? "bg-royal/10 text-royal"
                         : "bg-secondary text-muted-foreground",
                     )}
@@ -72,7 +89,47 @@ function DirectorPlanPanel({ stored }: { stored: StoredPlan }) {
                   {scene.transitionIn}
                   {next ? ` — into ${scene.transitionOut}` : " — closes the film"}
                 </p>
+
+                <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void start(scene)}
+                    className="inline-flex items-center gap-2 rounded-full bg-royal px-4 py-2 text-[13px] text-royal-foreground disabled:opacity-60"
+                  >
+                    {busy ? (
+                      <Loader2 className="size-3.5 animate-spin" strokeWidth={1.8} />
+                    ) : (
+                      <Sparkles className="size-3.5" strokeWidth={1.8} />
+                    )}
+                    {run?.phase === "succeeded" ? "Regenerate" : "Generate this scene"}
+                  </button>
+                  {run && run.phase !== "idle" ? (
+                    <span className="text-[13px] text-muted-foreground">
+                      {runLabels[run.phase]}
+                      {run.providerTaskId ? (
+                        <span className="ml-2 font-mono text-[11px]">
+                          task {run.providerTaskId.slice(0, 8)}
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : null}
+                  {run?.outputUrl ? (
+                    <a
+                      href={run.outputUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[13px] text-royal underline underline-offset-4"
+                    >
+                      Preview output
+                    </a>
+                  ) : null}
+                </div>
+                {run?.message ? (
+                  <p className="mt-2 text-[13px] text-muted-foreground">{run.message}</p>
+                ) : null}
               </article>
+
               {next ? (
                 <div className="flex justify-center py-1 text-muted-foreground/60">
                   <ArrowDown className="size-4" strokeWidth={1.5} />
