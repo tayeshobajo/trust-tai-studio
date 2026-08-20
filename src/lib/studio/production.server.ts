@@ -187,7 +187,7 @@ export async function recordGenerationProgress(
 
   const { data: assetRow } = await db
     .from("assets")
-    .select("id, story_id, scene_id")
+    .select("id, story_id, scene_id, studio_id, world_id, storage_path, provenance")
     .eq("provider_task_id", providerTaskId)
     .maybeSingle();
 
@@ -195,14 +195,36 @@ export async function recordGenerationProgress(
     return untracked(task, assetStatus, "This generation was never recorded, so there is nothing to update.");
   }
 
+  const alreadyStored = (assetRow["storage_path"] as string | null) ?? null;
+  const durablePath = storagePath ?? alreadyStored;
+
+  // `ready` is reserved for genuinely durable assets: a succeeded task whose
+  // bytes are not in `studio-assets` yet stays in flight.
+  const rowStatus: AssetStatus =
+    task.status === "succeeded" && !durablePath ? "generating" : assetStatus;
+
+  // Backfill the active Studio / World when the row was created before they
+  // could be resolved. Never sent by the browser.
+  const context = await resolveStudioContext();
+  const backfill: Record<string, unknown> = {};
+  if (!assetRow["studio_id"] && context.studioId) backfill["studio_id"] = context.studioId;
+  if (!assetRow["world_id"] && context.worldId) backfill["world_id"] = context.worldId;
+
   await db
     .from("assets")
     .update({
-      status: assetStatus,
+      status: rowStatus,
       // Provider URL is kept for provenance only; storage_path is the durable
       // source and signed URLs are minted from it on demand.
       url: task.outputUrl,
-      storage_path: storagePath,
+      ...(durablePath ? { storage_path: durablePath } : {}),
+      ...backfill,
+      provenance: {
+        ...((assetRow["provenance"] as Record<string, unknown> | null) ?? {}),
+        providerTaskId,
+        temporaryProviderUrl: task.outputUrl,
+        lastPolledAt: new Date().toISOString(),
+      },
     })
     .eq("id", assetRow["id"] as string);
 
