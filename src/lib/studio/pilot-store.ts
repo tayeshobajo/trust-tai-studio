@@ -84,6 +84,10 @@ export const emptyTrack: PilotTrack = {
   error: null,
   startedAt: null,
   completedAt: null,
+  events: [],
+  pollCount: 0,
+  lastPolledAt: null,
+
 };
 
 export const emptyScene = (sceneNumber: number): ScenePilotState => ({
