@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import {
   Type,
@@ -15,12 +16,17 @@ import {
   Image as ImageIcon,
   Clapperboard,
   AlertCircle,
+  Loader2,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
 import { activeWorld, formatLabels, type OutputFormat } from "@/lib/studio-data";
 import { draftStore } from "@/lib/studio/repositories";
+import { discoverStory, planDirection } from "@/lib/studio/studio-ai.functions";
+import { planStore } from "@/lib/studio/plan-store";
+import type { DirectorPlan, ServiceError, StoryDiscovery } from "@/lib/studio/ai-types";
 import type { SourceKind } from "@/lib/studio/types";
 import { cn } from "@/lib/utils";
 
@@ -83,12 +89,16 @@ const sourceModes: {
   },
 ];
 
-const discoveryFields = [
-  { key: "source_truth", label: "Source truth", hint: "What was actually said or observed." },
-  { key: "deeper_truth", label: "Deeper human truth", hint: "The thing underneath it." },
+const discoveryFields: {
+  key: keyof StoryDiscovery;
+  label: string;
+  hint: string;
+}[] = [
+  { key: "sourceTruth", label: "Source truth", hint: "What was actually said or observed." },
+  { key: "deeperHumanTruth", label: "Deeper human truth", hint: "The thing underneath it." },
   { key: "premise", label: "Story premise", hint: "The story in one sentence." },
-  { key: "why_it_matters", label: "Why it matters", hint: "Why this is worth anyone's time." },
-  { key: "angle", label: "Recommended angle", hint: "How Studio would tell it." },
+  { key: "whyItMatters", label: "Why it matters", hint: "Why this is worth anyone's time." },
+  { key: "recommendedAngle", label: "Recommended angle", hint: "How Studio would tell it." },
 ];
 
 const outputs: { format: OutputFormat; icon: typeof Linkedin; hint: string }[] = [
@@ -99,27 +109,122 @@ const outputs: { format: OutputFormat; icon: typeof Linkedin; hint: string }[] =
   { format: "cinematic_film", icon: Clapperboard, hint: "Short film" },
 ];
 
+function ConfigurationState({ error }: { error: ServiceError }) {
+  const pending = error.code === "provider_not_configured";
+  return (
+    <div
+      className={cn(
+        "flex gap-3 rounded-xl border p-4",
+        pending ? "border-royal/30 bg-royal/5" : "border-warning/30 bg-warning/5",
+      )}
+    >
+      <AlertCircle
+        className={cn("mt-0.5 size-4 shrink-0", pending ? "text-royal" : "text-warning")}
+        strokeWidth={2}
+      />
+      <div className="text-sm">
+        <div className="font-medium">
+          {pending ? "Studio AI is ready to connect" : "Studio AI could not complete this"}
+        </div>
+        <p className="mt-1 text-muted-foreground">
+          {error.message} Your source stays saved in this browser — nothing has been generated on
+          your behalf.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function CreatePage() {
   const [mode, setMode] = useState<SourceKind>("text");
   const [text, setText] = useState("");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [selected, setSelected] = useState<OutputFormat[]>([]);
 
-  const canAnalyze = mode === "text" && text.trim().length > 0;
+  const [analyzing, setAnalyzing] = useState(false);
+  const [discovery, setDiscovery] = useState<StoryDiscovery | null>(null);
+  const [discoveryError, setDiscoveryError] = useState<ServiceError | null>(null);
 
-  const analyze = () => {
+  const [directing, setDirecting] = useState(false);
+  const [plan, setPlan] = useState<DirectorPlan | null>(null);
+  const [planError, setPlanError] = useState<ServiceError | null>(null);
+
+  const runDiscovery = useServerFn(discoverStory);
+  const runDirection = useServerFn(planDirection);
+
+  const canAnalyze = mode === "text" && text.trim().length > 0 && !analyzing;
+
+  const worldContext = {
+    name: activeWorld.name,
+    canonVersion: activeWorld.canon,
+  };
+
+  const analyze = async () => {
     if (!canAnalyze) return;
     const record = draftStore.save({ kind: "text", content: text.trim() });
     setSavedAt(record.savedAt);
-    toast("Draft source saved in this browser.", {
-      description: "Studio AI analysis unlocks when the OpenAI server integration is connected.",
-    });
+    setAnalyzing(true);
+    setDiscoveryError(null);
+    setDiscovery(null);
+    setPlan(null);
+    setPlanError(null);
+
+    try {
+      const result = await runDiscovery({
+        data: {
+          sourceText: text.trim(),
+          world: worldContext,
+          requestedOutputs: selected,
+        },
+      });
+      if (result.ok) {
+        setDiscovery(result.data);
+      } else {
+        setDiscoveryError(result.error);
+      }
+    } catch {
+      setDiscoveryError({
+        code: "provider_error",
+        provider: "studio_ai",
+        message: "Studio could not reach the analysis service.",
+      });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const direct = async () => {
+    if (!discovery || directing) return;
+    setDirecting(true);
+    setPlanError(null);
+    try {
+      const result = await runDirection({
+        data: { discovery, world: worldContext },
+      });
+      if (result.ok) {
+        setPlan(result.data);
+        planStore.save(discovery, result.data);
+        toast("Director plan ready", { description: "Open In Production to see the scenes." });
+      } else {
+        setPlanError(result.error);
+      }
+    } catch {
+      setPlanError({
+        code: "provider_error",
+        provider: "studio_ai",
+        message: "Studio could not reach the direction service.",
+      });
+    } finally {
+      setDirecting(false);
+    }
   };
 
   const toggleOutput = (format: OutputFormat) =>
     setSelected((prev) =>
       prev.includes(format) ? prev.filter((f) => f !== format) : [...prev, format],
     );
+
+  const cinematicSelected = selected.includes("cinematic_film");
 
   return (
     <SuiteShell>
@@ -168,10 +273,7 @@ function CreatePage() {
                 id="source"
                 rows={7}
                 value={text}
-                onChange={(e) => {
-                  setText(e.target.value);
-                  setSavedAt(null);
-                }}
+                onChange={(e) => setText(e.target.value)}
                 placeholder="A conversation, an observation, a half-formed thought. Write it the way you'd say it out loud."
                 className="w-full resize-none bg-transparent text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground/70"
               />
@@ -188,24 +290,19 @@ function CreatePage() {
                   disabled={!canAnalyze}
                   className="ml-auto inline-flex h-12 items-center gap-2 rounded-full bg-primary px-6 text-sm font-medium text-primary-foreground transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
                 >
-                  <Sparkles className="size-4" strokeWidth={1.75} />
-                  Analyze with Studio AI
+                  {analyzing ? (
+                    <Loader2 className="size-4 animate-spin" strokeWidth={1.75} />
+                  ) : (
+                    <Sparkles className="size-4" strokeWidth={1.75} />
+                  )}
+                  {analyzing ? "Reading it properly…" : "Analyze with Studio AI"}
                 </button>
               </div>
 
-              {savedAt ? (
-                <div className="mt-5 flex gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4">
-                  <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" strokeWidth={2} />
-                  <div className="text-sm">
-                    <div className="font-medium">Integration needed — draft kept safe</div>
-                    <p className="mt-1 text-muted-foreground">
-                      Your source is stored locally in this browser (saved{" "}
-                      {new Date(savedAt).toLocaleTimeString()}). Studio AI will read it and fill
-                      the Story Discovery panel below once the OpenAI server integration is
-                      connected. Nothing has been generated on your behalf.
-                    </p>
-                  </div>
-                </div>
+              {savedAt && !discovery ? (
+                <p className="mt-4 font-mono text-[11px] text-muted-foreground">
+                  Source saved locally at {new Date(savedAt).toLocaleTimeString()}.
+                </p>
               ) : null}
             </div>
           </section>
@@ -215,15 +312,29 @@ function CreatePage() {
             <div className="flex items-baseline justify-between gap-4">
               <h2 className="font-display text-3xl tracking-tight">Story Discovery</h2>
               <span className="font-mono text-[11px] text-muted-foreground">
-                Awaiting Studio AI
+                {analyzing
+                  ? "Studio AI is thinking"
+                  : discovery
+                    ? "Complete"
+                    : "Awaiting Studio AI"}
               </span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Studio AI works down from what you said to why it matters. These fields stay empty
-              until the analysis is real.
+              Studio AI works down from what you said to why it matters. Understand the story
+              first — outputs come after.
             </p>
 
-            <div className="mt-6 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+            {discoveryError ? (
+              <div className="mt-6">
+                <ConfigurationState error={discoveryError} />
+              </div>
+            ) : null}
+
+            {discovery ? (
+              <h3 className="mt-6 font-display text-2xl leading-tight">{discovery.title}</h3>
+            ) : null}
+
+            <div className="mt-4 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
               {discoveryFields.map((field) => (
                 <div key={field.key} className="grid gap-1 p-5 sm:grid-cols-[220px_1fr] sm:gap-6">
                   <div>
@@ -231,10 +342,27 @@ function CreatePage() {
                     <div className="text-xs text-muted-foreground">{field.hint}</div>
                   </div>
                   <div className="flex items-center">
-                    <div className="h-px w-full bg-border" />
+                    {analyzing ? (
+                      <div className="h-2 w-2/3 animate-pulse rounded-full bg-secondary" />
+                    ) : discovery ? (
+                      <p className="text-[15px] leading-relaxed">{discovery[field.key]}</p>
+                    ) : (
+                      <div className="h-px w-full bg-border" />
+                    )}
                   </div>
                 </div>
               ))}
+              {discovery ? (
+                <div className="grid gap-1 p-5 sm:grid-cols-[220px_1fr] sm:gap-6">
+                  <div>
+                    <div className="text-sm font-medium">Creative treatment</div>
+                    <div className="text-xs text-muted-foreground">How it should feel.</div>
+                  </div>
+                  <p className="text-[15px] leading-relaxed">
+                    {discovery.suggestedCreativeTreatment}
+                  </p>
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -246,7 +374,7 @@ function CreatePage() {
               after Story Discovery.
             </p>
 
-            <div className="mt-6 grid gap-px overflow-hidden rounded-2xl bg-border sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {outputs.map(({ format, icon: Icon, hint }) => {
                 const isOn = selected.includes(format);
                 return (
@@ -255,8 +383,8 @@ function CreatePage() {
                     type="button"
                     onClick={() => toggleOutput(format)}
                     className={cn(
-                      "flex items-center gap-3 p-5 text-left transition-colors",
-                      isOn ? "bg-royal-soft" : "bg-card hover:bg-secondary",
+                      "flex items-center gap-3 rounded-2xl border p-4 text-left transition-colors",
+                      isOn ? "border-royal bg-royal/5" : "border-border bg-card hover:bg-secondary",
                     )}
                   >
                     <Icon
@@ -288,6 +416,52 @@ function CreatePage() {
                 : "Nothing selected yet."}
             </p>
           </section>
+
+          {/* Cinematic branch */}
+          {discovery && cinematicSelected ? (
+            <section className="mt-12 rounded-2xl border border-border bg-card p-6 shadow-tt lg:p-8">
+              <div className="eyebrow flex items-center gap-2">
+                <Clapperboard className="size-4 text-royal" strokeWidth={1.6} />
+                Cinematic Film
+              </div>
+              <h2 className="mt-3 font-display text-2xl leading-tight">Direct this film</h2>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                Studio AI directs the whole film at once — intent, emotional arc, pacing,
+                continuity rules, beats, and scene-by-scene direction. Nothing is rendered here.
+              </p>
+
+              <div className="mt-5 flex flex-wrap items-center gap-4">
+                <button
+                  type="button"
+                  onClick={direct}
+                  disabled={directing}
+                  className="inline-flex h-12 items-center gap-2 rounded-full bg-primary px-6 text-sm font-medium text-primary-foreground transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+                >
+                  {directing ? (
+                    <Loader2 className="size-4 animate-spin" strokeWidth={1.75} />
+                  ) : (
+                    <Clapperboard className="size-4" strokeWidth={1.75} />
+                  )}
+                  {directing ? "Directing…" : "Direct this film"}
+                </button>
+                {plan ? (
+                  <Link
+                    to="/production"
+                    className="inline-flex items-center gap-1 text-sm font-medium text-royal hover:underline"
+                  >
+                    {plan.scenes.length} scenes planned — open In Production
+                    <ChevronRight className="size-4" />
+                  </Link>
+                ) : null}
+              </div>
+
+              {planError ? (
+                <div className="mt-5">
+                  <ConfigurationState error={planError} />
+                </div>
+              ) : null}
+            </section>
+          ) : null}
         </div>
       </div>
     </SuiteShell>
