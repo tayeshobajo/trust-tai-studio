@@ -18,8 +18,15 @@ import {
   generateSceneImage,
   generateSceneVideo,
 } from "./production.functions";
+import { approveAsset, requestChanges } from "./review.functions";
 import { compileMotionPrompt, compileStoryboardPrompt, sceneContext } from "./scene-prompt";
-import { emptyScene, pilotStore, type PilotState, type PilotTrack } from "./pilot-store";
+import {
+  emptyScene,
+  pilotStore,
+  type PilotReview,
+  type PilotState,
+  type PilotTrack,
+} from "./pilot-store";
 
 const POLL_MS = 6000;
 const MAX_POLLS = 100; // ~10 minutes, then we stop and say so.
@@ -32,6 +39,8 @@ export function useScenePilot(plan: DirectorPlan) {
   const submitImage = useServerFn(generateSceneImage);
   const submitVideo = useServerFn(generateSceneVideo);
   const poll = useServerFn(checkGenerationStatus);
+  const approve = useServerFn(approveAsset);
+  const askForChanges = useServerFn(requestChanges);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const stateRef = useRef<PilotState>({});
 
@@ -84,6 +93,11 @@ export function useScenePilot(plan: DirectorPlan) {
         previewUrl: task.outputUrl,
         assetId: tracked.assetId,
         persisted: tracked.persisted,
+        durable: tracked.durable,
+        storagePath: tracked.storagePath,
+        // Prefer Studio's own signed URL once the bytes are stored.
+        durableUrl: tracked.durableUrl,
+        durabilityNote: tracked.durabilityNote,
         error:
           task.status === "failed"
             ? {
@@ -265,6 +279,66 @@ export function useScenePilot(plan: DirectorPlan) {
     [applyTracked, patch, plan, schedulePoll, submitVideo],
   );
 
+  const setReview = useCallback(
+    (sceneNumber: number, track: TrackName, review: Partial<PilotReview>) => {
+      const current =
+        stateRef.current[sceneNumber]?.[track].review ??
+        ({ phase: "idle", note: null, error: null } as PilotReview);
+      patch(sceneNumber, track, { review: { ...current, ...review } });
+    },
+    [patch],
+  );
+
+  /** Approve a stored frame to the World. Server refuses non-durable assets. */
+  const approveTrack = useCallback(
+    async (sceneNumber: number, track: TrackName, note?: string) => {
+      const assetId = stateRef.current[sceneNumber]?.[track].assetId;
+      if (!assetId) return;
+      setReview(sceneNumber, track, { phase: "saving", error: null });
+      try {
+        const result = await approve({ data: { assetId, note: note ?? null } });
+        setReview(
+          sceneNumber,
+          track,
+          result.ok
+            ? { phase: "approved", note: note ?? null, error: null }
+            : { phase: "failed", error: result.error.message },
+        );
+      } catch {
+        setReview(sceneNumber, track, {
+          phase: "failed",
+          error: "Studio could not record that approval.",
+        });
+      }
+    },
+    [approve, setReview],
+  );
+
+  /** Record creative feedback; the scene goes back to ready_to_generate. */
+  const requestTrackChanges = useCallback(
+    async (sceneNumber: number, track: TrackName, feedback: string) => {
+      const assetId = stateRef.current[sceneNumber]?.[track].assetId;
+      if (!assetId) return;
+      setReview(sceneNumber, track, { phase: "saving", error: null });
+      try {
+        const result = await askForChanges({ data: { assetId, feedback } });
+        setReview(
+          sceneNumber,
+          track,
+          result.ok
+            ? { phase: "changes_requested", note: feedback, error: null }
+            : { phase: "failed", error: result.error.message },
+        );
+      } catch {
+        setReview(sceneNumber, track, {
+          phase: "failed",
+          error: "Studio could not record that feedback.",
+        });
+      }
+    },
+    [askForChanges, setReview],
+  );
+
   const reset = useCallback(() => {
     Object.values(timers.current).forEach(clearTimeout);
     timers.current = {};
@@ -273,7 +347,14 @@ export function useScenePilot(plan: DirectorPlan) {
     setState({});
   }, []);
 
-  return { state, generateStoryboard, animateScene, reset };
+  return {
+    state,
+    generateStoryboard,
+    animateScene,
+    approveTrack,
+    requestTrackChanges,
+    reset,
+  };
 }
 
 interface ScenePilotProvenance {
