@@ -20,12 +20,17 @@ export const discoverStory = createServerFn({ method: "POST" })
   .inputValidator((input: StoryDiscoveryRequest) => input)
   .handler(async ({ data }): Promise<ServiceResult<StoryDiscovery>> => {
     const { studioAI } = await import("./studio-ai.server");
-    return studioAI.discoverStory(data);
+    const { getWorldCreativeContext } = await import("./studio-config.server");
+    // World context is authoritative from the database, never from the browser.
+    const world = await getWorldCreativeContext();
+    return studioAI.discoverStory({ ...data, world });
   });
 
 export const planDirection = createServerFn({ method: "POST" })
   .inputValidator((input: DirectorPlanRequest) => input)
   .handler(async ({ data }): Promise<ServiceResult<DirectorPlan>> => {
     const { studioAI } = await import("./studio-ai.server");
-    return studioAI.planDirection(data);
+    const { getWorldCreativeContext } = await import("./studio-config.server");
+    const world = await getWorldCreativeContext();
+    return studioAI.planDirection({ ...data, world });
   });
