@@ -287,6 +287,8 @@ export const runwayEngine: ProductionEngine = {
         status,
         // TEMPORARY URL — durable only once copied into `studio-assets`.
         outputUrl: status === "succeeded" ? firstOutputUrl(json.output) : null,
+        failureReason:
+          status === "failed" && typeof json.failure === "string" ? json.failure : null,
       },
     };
   },

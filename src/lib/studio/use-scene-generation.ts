@@ -9,7 +9,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 
-import type { DirectorPlan, SceneDirection, TrackedGenerationTask } from "./ai-types";
+import type {
+  DirectorPlan,
+  SceneDirection,
+  ServiceError,
+  ServiceErrorCode,
+  TrackedGenerationTask,
+} from "./ai-types";
 import {
   checkGenerationStatus,
   generateSceneImage,
@@ -22,6 +28,8 @@ export interface SceneRun {
   outputUrl: string | null;
   /** Honest surface for provider or persistence problems. */
   message: string | null;
+  /** Typed provider failure code (401 -> provider_not_configured, 429 -> rate_limited, ...). */
+  errorCode: ServiceErrorCode | "task_failed" | null;
   persisted: boolean;
 }
 
@@ -30,6 +38,7 @@ const idle: SceneRun = {
   providerTaskId: null,
   outputUrl: null,
   message: null,
+  errorCode: null,
   persisted: false,
 };
 
@@ -50,6 +59,10 @@ export function composeScenePrompt(scene: SceneDirection, plan: DirectorPlan): s
   ]
     .filter(Boolean)
     .join(". ");
+}
+
+function errorPatch(error: ServiceError): Partial<SceneRun> {
+  return { message: error.message, errorCode: error.code };
 }
 
 export function useSceneGeneration(plan: DirectorPlan, storyId: string | null) {
@@ -83,7 +96,11 @@ export function useSceneGeneration(plan: DirectorPlan, storyId: string | null) {
         providerTaskId: task.provenance.providerTaskId,
         outputUrl: task.outputUrl,
         persisted: tracked.persisted,
-        message: tracked.persistenceNote,
+        message:
+          task.status === "failed"
+            ? (task.failureReason ?? "The production engine reported a failed task.")
+            : tracked.persistenceNote,
+        errorCode: task.status === "failed" ? "task_failed" : null,
       });
       return task.status;
     },
@@ -95,7 +112,7 @@ export function useSceneGeneration(plan: DirectorPlan, storyId: string | null) {
       timers.current[sceneNumber] = setTimeout(async () => {
         const result = await poll({ data: { providerTaskId } });
         if (!result.ok) {
-          set(sceneNumber, { phase: "failed", message: result.error.message });
+          set(sceneNumber, { phase: "failed", ...errorPatch(result.error) });
           return;
         }
         const status = applyTracked(sceneNumber, result.data);
@@ -130,7 +147,7 @@ export function useSceneGeneration(plan: DirectorPlan, storyId: string | null) {
           : await submitImage({ data: request });
 
       if (!result.ok) {
-        set(scene.sceneNumber, { phase: "failed", message: result.error.message });
+        set(scene.sceneNumber, { phase: "failed", ...errorPatch(result.error) });
         return;
       }
       const status = applyTracked(scene.sceneNumber, result.data);
