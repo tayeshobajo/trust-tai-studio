@@ -177,6 +177,52 @@ function WorldPage() {
               </div>
             </div>
           </section>
+
+          {/* World bible upload + creative rules */}
+          <section className="mt-14 grid gap-6 lg:grid-cols-[1fr_1fr]">
+            <div className="rounded-2xl border border-dashed border-border bg-card/60 p-6">
+              <div className="flex items-center gap-2">
+                <UploadCloud className="size-5 text-royal" strokeWidth={1.6} />
+                <h2 className="font-display text-2xl tracking-tight">World Bible upload</h2>
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Drop the written canon — documents, references, transcripts — so Studio AI can
+                read from the source instead of guessing.
+              </p>
+              <div className="mt-5 rounded-xl border border-border p-5 text-sm text-muted-foreground">
+                Uploading is unavailable until Studio file storage is connected.
+              </div>
+              <div className="mt-4 font-mono text-[11px] text-muted-foreground">
+                {activeWorld.canon} · canon version is set here once editing is enabled
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card p-6">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="size-5 text-royal" strokeWidth={1.6} />
+                <h2 className="font-display text-2xl tracking-tight">Creative rules</h2>
+              </div>
+              <ul className="mt-4 space-y-3 text-sm">
+                <li className="border-l-2 border-royal/40 pl-3">
+                  Every output begins as a Story. Never write to a channel first.
+                </li>
+                <li className="border-l-2 border-royal/40 pl-3">
+                  Calm, editorial, unhurried. Peer to peer, never audience-facing.
+                </li>
+                <li className="border-l-2 border-royal/40 pl-3">
+                  Nothing enters canon without human approval.
+                </li>
+              </ul>
+              <div className="mt-5 rounded-xl border border-dashed border-border p-4">
+                <div className="eyebrow">Anti-drift rules</div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Hard constraints Studio AI and the production engine must not violate.
+                  Placeholder until the World editor lands.
+                </p>
+              </div>
+            </div>
+          </section>
+
         </div>
       </div>
     </SuiteShell>
