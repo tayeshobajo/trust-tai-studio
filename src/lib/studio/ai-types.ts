@@ -174,4 +174,27 @@ export interface TrackedGenerationTask {
   sceneStatus: SceneStatus | null;
   /** Story status after this transition, when a story was addressed. */
   storyStatus: string | null;
+  /** True only once the bytes live in the private `studio-assets` bucket. */
+  durable: boolean;
+  /** Path inside `studio-assets`, once copied. */
+  storagePath: string | null;
+  /** Short-lived signed URL served from Studio storage (not the provider). */
+  durableUrl: string | null;
+  /** Honest reason durability has not happened yet. */
+  durabilityNote: string | null;
 }
+
+/* ---------------- Review (approvals + creative feedback) ---------------- */
+
+export interface ReviewOutcome {
+  assetId: UUID;
+  /** Approval row id, when an approval was written. */
+  approvalId: UUID | null;
+  /** Creative feedback row id, when changes were requested. */
+  feedbackId: UUID | null;
+  assetStatus: AssetStatus | "approved";
+  sceneStatus: SceneStatus | null;
+  storyStatus: string | null;
+  isCanon: boolean;
+}
+
