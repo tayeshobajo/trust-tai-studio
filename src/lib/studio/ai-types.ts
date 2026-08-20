@@ -134,6 +134,8 @@ export interface GenerateImageRequest {
   sceneId?: UUID | null;
   worldId?: UUID | null;
   referenceAssetIds?: UUID[];
+  /** Resolved reference image URLs, when the engine/request type supports them. */
+  referenceImageUrls?: string[];
   aspectRatio?: string;
 }
 
