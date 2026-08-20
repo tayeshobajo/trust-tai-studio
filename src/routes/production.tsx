@@ -72,9 +72,8 @@ function DirectorPlanPanel({ stored }: { stored: StoredPlan }) {
                 const reason = window.prompt("Why is this asset out? (optional)");
                 void rejectTrack(sceneNumber, kind, reason?.trim() || undefined);
               }}
-              onRequestChanges={(sceneNumber, kind) => {
-                const note = window.prompt("What should change in this scene?");
-                if (note?.trim()) void requestTrackChanges(sceneNumber, kind, note.trim());
+              onRequestChanges={(sceneNumber, kind, note) => {
+                void requestTrackChanges(sceneNumber, kind, note);
               }}
             />
             {plan.scenes[i + 1] ? (

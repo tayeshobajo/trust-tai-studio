@@ -18,6 +18,23 @@ const noDb = (): ServiceResult<ReviewOutcome> => ({
   error: { code: "provider_not_configured", provider: "studio_storage", message: NO_DATABASE_NOTE },
 });
 
+/**
+ * Deterministic, server-side classification of a review note. The producer is
+ * never asked to categorise their own feedback; we infer it so the memory is
+ * usable later, and fall back to `other` rather than guessing.
+ */
+export function classifyFeedback(text: string): "visual" | "continuity" | "story" | "world" | "other" {
+  const t = text.toLowerCase();
+  if (/\b(continuity|the same|changed|different (face|person)|character (changed|is)|wardrobe|outfit|prop)\b/.test(t))
+    return "continuity";
+  if (/\b(camera|light(ing)?|colou?r|frame|framing|composition|shot|angle|move|moving|left to right|texture|grain)\b/.test(t))
+    return "visual";
+  if (/\b(world|canon|trust tai|brand|feel like|tone|doesn'?t feel|does not feel)\b/.test(t)) return "world";
+  if (/\b(story|opening|reveal|reveals|lesson|pacing|explain(s|ing)?|discover|ending|beat)\b/.test(t))
+    return "story";
+  return "other";
+}
+
 async function reconcileStory(
   db: NonNullable<ReturnType<typeof getServerSupabase>>,
   storyId: UUID | null,
@@ -99,7 +116,25 @@ export async function approveAssetToWorld(input: {
     };
   }
 
-  await db.from("assets").update({ status: "ready", is_canon: true }).eq("id", input.assetId);
+  await db.from("assets").update({ status: "approved", is_canon: true }).eq("id", input.assetId);
+
+  // A human approval is creative memory too: record it as an approved pattern
+  // so future Studio AI passes can learn what the World accepts.
+  const approvalNote = input.note?.trim() || "Approved to the World as canon.";
+  const { data: feedbackRow } = await db
+    .from("creative_feedback")
+    .insert({
+      studio_id: asset["studio_id"],
+      world_id: asset["world_id"],
+      story_id: storyId,
+      scene_id: sceneId,
+      asset_id: input.assetId,
+      feedback: approvalNote,
+      classification: input.note?.trim() ? classifyFeedback(input.note) : "world",
+      disposition: "approved_pattern",
+    })
+    .select("id")
+    .maybeSingle();
 
   let sceneStatus: SceneStatus | null = null;
   if (sceneId) {
@@ -115,7 +150,7 @@ export async function approveAssetToWorld(input: {
     data: {
       assetId: input.assetId,
       approvalId: (approval?.["id"] as UUID | undefined) ?? null,
-      feedbackId: null,
+      feedbackId: (feedbackRow?.["id"] as UUID | undefined) ?? null,
       assetStatus: "approved",
       sceneStatus,
       storyStatus: await reconcileStory(db, storyId),
@@ -163,7 +198,8 @@ export async function requestSceneChanges(input: {
       scene_id: sceneId,
       asset_id: input.assetId,
       feedback: trimmed,
-      disposition: "changes_requested",
+      classification: classifyFeedback(trimmed),
+      disposition: "observation",
     })
     .select("id")
     .maybeSingle();
@@ -256,7 +292,8 @@ export async function rejectAsset(input: {
         scene_id: sceneId,
         asset_id: input.assetId,
         feedback: reason,
-        disposition: "rejected",
+        classification: classifyFeedback(reason),
+        disposition: "rejected_pattern",
       })
       .select("id")
       .maybeSingle();

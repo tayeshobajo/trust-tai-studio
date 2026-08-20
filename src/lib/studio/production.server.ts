@@ -19,6 +19,7 @@ import type {
 } from "./ai-types";
 import type { UUID } from "./types";
 import { getServerSupabase, NO_DATABASE_NOTE } from "./db.server";
+import { resolveStudioContext } from "./studio-config.server";
 
 export interface RecordTaskInput {
   task: GenerationTask;
@@ -106,20 +107,32 @@ export async function recordGenerationStart(
   const { storyId, sceneId, worldId, prompt, providerTaskId } = task.provenance;
   const resolvedSceneId = await resolveSceneId(db, storyId, sceneId, input.sceneNumber);
 
+  // Active Studio / World are resolved server-side, never sent by the browser.
+  const context = await resolveStudioContext();
+  const studioId = input.studioId ?? context.studioId;
+  const resolvedWorldId = worldId ?? context.worldId;
+
   const { data, error } = await db
     .from("assets")
     .insert({
-      studio_id: input.studioId ?? null,
+      studio_id: studioId,
       story_id: storyId,
       scene_id: resolvedSceneId,
-      world_id: worldId,
+      world_id: resolvedWorldId,
       asset_type: input.assetType,
       status: assetStatus,
       provider: "runway",
       provider_task_id: providerTaskId,
       prompt,
       generation_settings: input.generationSettings ?? {},
-      provenance: { ...task.provenance, sceneNumber: input.sceneNumber },
+      provenance: {
+        ...task.provenance,
+        studioId,
+        worldId: resolvedWorldId,
+        sceneNumber: input.sceneNumber,
+        assetType: input.assetType,
+        submittedAt: new Date().toISOString(),
+      },
     })
     .select("id")
     .maybeSingle();
@@ -174,7 +187,7 @@ export async function recordGenerationProgress(
 
   const { data: assetRow } = await db
     .from("assets")
-    .select("id, story_id, scene_id")
+    .select("id, story_id, scene_id, studio_id, world_id, storage_path, provenance")
     .eq("provider_task_id", providerTaskId)
     .maybeSingle();
 
@@ -182,14 +195,36 @@ export async function recordGenerationProgress(
     return untracked(task, assetStatus, "This generation was never recorded, so there is nothing to update.");
   }
 
+  const alreadyStored = (assetRow["storage_path"] as string | null) ?? null;
+  const durablePath = storagePath ?? alreadyStored;
+
+  // `ready` is reserved for genuinely durable assets: a succeeded task whose
+  // bytes are not in `studio-assets` yet stays in flight.
+  const rowStatus: AssetStatus =
+    task.status === "succeeded" && !durablePath ? "generating" : assetStatus;
+
+  // Backfill the active Studio / World when the row was created before they
+  // could be resolved. Never sent by the browser.
+  const context = await resolveStudioContext();
+  const backfill: Record<string, unknown> = {};
+  if (!assetRow["studio_id"] && context.studioId) backfill["studio_id"] = context.studioId;
+  if (!assetRow["world_id"] && context.worldId) backfill["world_id"] = context.worldId;
+
   await db
     .from("assets")
     .update({
-      status: assetStatus,
+      status: rowStatus,
       // Provider URL is kept for provenance only; storage_path is the durable
       // source and signed URLs are minted from it on demand.
       url: task.outputUrl,
-      storage_path: storagePath,
+      ...(durablePath ? { storage_path: durablePath } : {}),
+      ...backfill,
+      provenance: {
+        ...((assetRow["provenance"] as Record<string, unknown> | null) ?? {}),
+        providerTaskId,
+        temporaryProviderUrl: task.outputUrl,
+        lastPolledAt: new Date().toISOString(),
+      },
     })
     .eq("id", assetRow["id"] as string);
 
@@ -209,14 +244,14 @@ export async function recordGenerationProgress(
   return {
     task,
     assetId: assetRow["id"] as UUID,
-    assetStatus,
+    assetStatus: rowStatus,
     persisted: true,
     persistenceNote: null,
     sceneStatus,
     storyStatus,
-    durable: Boolean(storagePath),
-    storagePath,
+    durable: Boolean(durablePath),
+    storagePath: durablePath,
     durableUrl,
-    durabilityNote: storagePath ? null : durabilityNote,
+    durabilityNote: durablePath ? null : durabilityNote,
   };
 }
