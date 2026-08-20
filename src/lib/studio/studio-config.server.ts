@@ -85,3 +85,48 @@ export async function resolveStudioContext(force = false): Promise<StudioContext
   };
   return cached;
 }
+
+/**
+ * Relevant creative context for the Active World.
+ *
+ * Deliberately narrow: compiled canon lines when the World has them, otherwise
+ * a short bible excerpt. The whole Bible is never sent to the model.
+ */
+export async function getWorldCreativeContext(): Promise<{
+  name: string;
+  canonVersion: string;
+  creativeRules?: string[];
+}> {
+  const ctx = await resolveStudioContext();
+  const fallback = { name: "The Trust Tai World", canonVersion: "Canon v1.0" };
+  const db = getServerSupabase();
+  if (!db || !ctx.worldId) return fallback;
+
+  const { data } = await db
+    .from("worlds")
+    .select("name, canon_version, compiled_canon, bible_text")
+    .eq("id", ctx.worldId)
+    .maybeSingle();
+  if (!data) return fallback;
+
+  const compiled = data["compiled_canon"] as unknown;
+  let rules: string[] = [];
+  if (Array.isArray(compiled)) {
+    rules = compiled.filter((v): v is string => typeof v === "string");
+  } else if (compiled && typeof compiled === "object") {
+    const maybe = (compiled as Record<string, unknown>)["rules"];
+    if (Array.isArray(maybe)) rules = maybe.filter((v): v is string => typeof v === "string");
+  }
+  if (!rules.length) {
+    const bible = data["bible_text"];
+    if (typeof bible === "string" && bible.trim()) {
+      rules = [bible.trim().slice(0, 1200)];
+    }
+  }
+
+  return {
+    name: (data["name"] as string | undefined) ?? fallback.name,
+    canonVersion: (data["canon_version"] as string | undefined) ?? fallback.canonVersion,
+    ...(rules.length ? { creativeRules: rules.slice(0, 12) } : {}),
+  };
+}
