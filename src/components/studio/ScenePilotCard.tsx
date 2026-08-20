@@ -9,7 +9,7 @@
 import { AlertCircle, Clapperboard, Film, ImageIcon, Loader2, Sparkles } from "lucide-react";
 
 import type { DirectorPlan, SceneDirection, SceneStatus } from "@/lib/studio/ai-types";
-import { emptyScene, type ScenePilotState } from "@/lib/studio/pilot-store";
+import { emptyScene, type PilotTrack, type ScenePilotState } from "@/lib/studio/pilot-store";
 import { cn } from "@/lib/utils";
 
 const phaseCopy = {
@@ -37,12 +37,76 @@ function errorHeadline(code: string): string {
   }
 }
 
-function TrackNote({ persisted }: { persisted: boolean }) {
+function TrackNote({ track }: { track: PilotTrack }) {
   return (
     <p className="mt-2 font-mono text-[11px] text-muted-foreground">
-      Preview generated · not yet stored in Studio
-      {persisted ? " · task recorded" : " · task not recorded in the database"}
+      {track.durable
+        ? "Stored in Studio · studio-assets"
+        : "Preview generated · not yet stored in Studio"}
+      {track.persisted ? " · task recorded" : " · task not recorded in the database"}
+      {!track.durable && track.durabilityNote ? ` · ${track.durabilityNote}` : ""}
     </p>
+  );
+}
+
+/** Approve to World / Request changes for one finished track. */
+function ReviewActions({
+  track,
+  sceneNumber,
+  kind,
+  onApprove,
+  onRequestChanges,
+}: {
+  track: PilotTrack;
+  sceneNumber: number;
+  kind: "image" | "video";
+  onApprove: (sceneNumber: number, kind: "image" | "video") => void;
+  onRequestChanges: (sceneNumber: number, kind: "image" | "video") => void;
+}) {
+  const ready = track.durable && Boolean(track.assetId);
+  const saving = track.review.phase === "saving";
+  const blockedReason = !track.assetId
+    ? "This generation was not recorded in Studio, so there is nothing to approve yet."
+    : "This frame is still a provider preview. Approval opens once it is stored in Studio.";
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
+      <button
+        type="button"
+        disabled={!ready || saving}
+        title={ready ? "Approve this to the Active World" : blockedReason}
+        onClick={() => onApprove(sceneNumber, kind)}
+        className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {saving ? (
+          <Loader2 className="size-3.5 animate-spin" strokeWidth={1.8} />
+        ) : (
+          <Sparkles className="size-3.5" strokeWidth={1.8} />
+        )}
+        {track.review.phase === "approved" ? "Approved to World" : "Approve to World"}
+      </button>
+      <button
+        type="button"
+        disabled={!ready || saving}
+        title={ready ? "Record what should change" : blockedReason}
+        onClick={() => onRequestChanges(sceneNumber, kind)}
+        className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <Clapperboard className="size-3.5" strokeWidth={1.8} />
+        Request changes
+      </button>
+      <span className="text-[12px] text-muted-foreground">
+        {track.review.phase === "approved"
+          ? "Recorded as canon in the Active World."
+          : track.review.phase === "changes_requested"
+            ? "Feedback saved to the World's creative memory · scene back for another pass."
+            : track.review.error
+              ? track.review.error
+              : ready
+                ? "Stored in Studio · ready for the World."
+                : "Approval opens once this frame is stored in Studio."}
+      </span>
+    </div>
   );
 }
 
@@ -54,6 +118,8 @@ export function ScenePilotCard({
   busyElsewhere,
   onGenerateImage,
   onAnimate,
+  onApprove,
+  onRequestChanges,
 }: {
   scene: SceneDirection;
   plan: DirectorPlan;
@@ -62,6 +128,8 @@ export function ScenePilotCard({
   busyElsewhere: boolean;
   onGenerateImage: (scene: SceneDirection) => void;
   onAnimate: (scene: SceneDirection) => void;
+  onApprove: (sceneNumber: number, kind: "image" | "video") => void;
+  onRequestChanges: (sceneNumber: number, kind: "image" | "video") => void;
 }) {
   const state = pilot ?? emptyScene(scene.sceneNumber);
   const image = state.image;
@@ -152,17 +220,26 @@ export function ScenePilotCard({
         ) : null}
 
         {image.phase === "succeeded" && image.previewUrl ? (
+          <>
           <figure className="mt-3">
             <img
-              src={image.previewUrl}
+              src={image.durableUrl ?? image.previewUrl}
               alt={`Storyboard frame for scene ${scene.sceneNumber}`}
               className="w-full rounded-lg border border-border object-cover"
               loading="lazy"
             />
             <figcaption>
-              <TrackNote persisted={image.persisted} />
+              <TrackNote track={image} />
             </figcaption>
           </figure>
+          <ReviewActions
+            track={image}
+            sceneNumber={scene.sceneNumber}
+            kind="image"
+            onApprove={onApprove}
+            onRequestChanges={onRequestChanges}
+          />
+          </>
         ) : null}
       </div>
 
@@ -201,48 +278,31 @@ export function ScenePilotCard({
           ) : null}
 
           {video.phase === "succeeded" && video.previewUrl ? (
+            <>
             <figure className="mt-3">
               {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
               <video
-                src={video.previewUrl}
+                src={video.durableUrl ?? video.previewUrl}
                 controls
                 playsInline
                 className="w-full rounded-lg border border-border"
               />
               <figcaption>
-                <TrackNote persisted={video.persisted} />
+                <TrackNote track={video} />
               </figcaption>
             </figure>
+            <ReviewActions
+              track={video}
+              sceneNumber={scene.sceneNumber}
+              kind="video"
+              onApprove={onApprove}
+              onRequestChanges={onRequestChanges}
+            />
+            </>
           ) : null}
         </div>
       ) : null}
 
-      {/* Future-state review actions */}
-      {image.phase === "succeeded" || video.phase === "succeeded" ? (
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
-          <button
-            type="button"
-            disabled
-            title="Available once generated frames are copied into Studio storage and approvals persist."
-            className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] opacity-50"
-          >
-            <Sparkles className="size-3.5" strokeWidth={1.8} />
-            Approve to World
-          </button>
-          <button
-            type="button"
-            disabled
-            title="Available once creative feedback persists against the scene."
-            className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] opacity-50"
-          >
-            <Clapperboard className="size-3.5" strokeWidth={1.8} />
-            Request changes
-          </button>
-          <span className="text-[12px] text-muted-foreground">
-            Approval opens once this frame is stored in Studio.
-          </span>
-        </div>
-      ) : null}
     </article>
   );
 }
