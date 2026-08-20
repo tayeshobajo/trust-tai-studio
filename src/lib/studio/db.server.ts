@@ -43,4 +43,5 @@ export function getServerSupabase(): SupabaseClient | null {
 }
 
 export const NO_DATABASE_NOTE =
-  "Generation ran, but nothing was recorded: the server has no database credentials (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).";
+  "Generation ran, but nothing was recorded: the server has no database credentials (STUDIO_SUPABASE_URL / STUDIO_SUPABASE_SERVICE_ROLE_KEY).";
+
