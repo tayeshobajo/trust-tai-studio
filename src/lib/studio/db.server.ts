@@ -6,20 +6,25 @@
  * server has no database credentials, production still runs against Runway but
  * nothing is persisted and the UI is told so explicitly.
  *
- * Expected server env:
- *   SUPABASE_URL                 (falls back to VITE_SUPABASE_URL)
- *   SUPABASE_SERVICE_ROLE_KEY    (falls back to SUPABASE_PUBLISHABLE_KEY)
+ * Expected server env (Studio-owned names take precedence):
+ *   STUDIO_SUPABASE_URL                 (falls back to SUPABASE_URL / VITE_SUPABASE_URL)
+ *   STUDIO_SUPABASE_SERVICE_ROLE_KEY    (falls back to SUPABASE_SERVICE_ROLE_KEY)
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export function getServerSupabase(): SupabaseClient | null {
-  const url = process.env["SUPABASE_URL"] ?? process.env["VITE_SUPABASE_URL"];
+  const url =
+    process.env["STUDIO_SUPABASE_URL"] ??
+    process.env["SUPABASE_URL"] ??
+    process.env["VITE_SUPABASE_URL"];
   const key =
+    process.env["STUDIO_SUPABASE_SERVICE_ROLE_KEY"] ??
     process.env["SUPABASE_SERVICE_ROLE_KEY"] ??
     process.env["SUPABASE_PUBLISHABLE_KEY"] ??
     process.env["VITE_SUPABASE_PUBLISHABLE_KEY"];
   if (!url || !key) return null;
+
 
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
