@@ -43,9 +43,8 @@ const skipped = (reason: string): SweepResult => ({
   failed: 0,
 });
 
-/** 402/403 are terminal for the whole job; repeated 429s only park this run. */
-const isHaltCode = (code: ServiceErrorCode): boolean =>
-  code === "provider_not_configured" || code === "quota_exceeded" || code === "forbidden";
+/** A credential/permission failure is terminal for the whole job; repeated 429s only park this run. */
+const isHaltCode = (code: ServiceErrorCode): boolean => code === "provider_not_configured";
 
 export async function sweepOpenTasks(): Promise<SweepResult> {
   const db = getServerSupabase();
