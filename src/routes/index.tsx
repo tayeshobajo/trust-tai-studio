@@ -125,6 +125,10 @@ function StudioHome() {
             </blockquote>
           </section>
 
+          <StudioAIStatus />
+
+
+
           {/* Primary creation input */}
           <section className="mt-10 rounded-2xl border border-border bg-card p-6 shadow-tt-md lg:p-8">
             <label htmlFor="story-source" className="sr-only">
