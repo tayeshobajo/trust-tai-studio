@@ -32,9 +32,43 @@ export interface ProductionEngine {
 
 const RUNWAY_VERSION = "2024-11-06";
 const DEFAULT_IMAGE_MODEL = "gen4_image";
-const DEFAULT_VIDEO_MODEL = "gen4.5";
+/** image_to_video model. `gen4_turbo` is the current image-to-video contract. */
+const DEFAULT_VIDEO_MODEL = "gen4_turbo";
+/** text_to_video model, used only when there is no start frame. */
+const DEFAULT_TEXT_VIDEO_MODEL = "veo3";
 const DEFAULT_IMAGE_RATIO = "1920:1080";
 const DEFAULT_VIDEO_RATIO = "1280:720";
+
+/** Provider-accepted ratios; anything else is coerced to the cinematic default. */
+const IMAGE_RATIOS = new Set([
+  "1920:1080",
+  "1080:1920",
+  "1024:1024",
+  "1360:768",
+  "1080:1080",
+  "1168:880",
+  "1440:1080",
+  "1080:1440",
+  "1808:768",
+  "2112:912",
+]);
+const VIDEO_RATIOS = new Set([
+  "1280:720",
+  "720:1280",
+  "1104:832",
+  "832:1104",
+  "960:960",
+  "1584:672",
+]);
+
+/** gen4_turbo accepts 5s or 10s only; clamp instead of failing the render. */
+const clampVideoDuration = (seconds: number | undefined): 5 | 10 =>
+  typeof seconds === "number" && seconds >= 8 ? 10 : 5;
+
+const imageRatio = (ratio: string | undefined) =>
+  ratio && IMAGE_RATIOS.has(ratio) ? ratio : DEFAULT_IMAGE_RATIO;
+const videoRatio = (ratio: string | undefined) =>
+  ratio && VIDEO_RATIOS.has(ratio) ? ratio : DEFAULT_VIDEO_RATIO;
 
 const fail = (error: ServiceError): ServiceResult<GenerationTask> => ({ ok: false, error });
 
@@ -67,6 +101,8 @@ const credential = (): string | null => process.env["RUNWAY_API_KEY"] ?? null;
 
 const imageModel = () => process.env["RUNWAY_IMAGE_MODEL"] ?? DEFAULT_IMAGE_MODEL;
 const videoModel = () => process.env["RUNWAY_VIDEO_MODEL"] ?? DEFAULT_VIDEO_MODEL;
+const textVideoModel = () =>
+  process.env["RUNWAY_TEXT_VIDEO_MODEL"] ?? DEFAULT_TEXT_VIDEO_MODEL;
 
 /** Single touch point for the credential; every Runway request goes through here. */
 async function runwayFetch(
@@ -122,6 +158,7 @@ type RunwayTaskResponse = {
   status?: unknown;
   output?: unknown;
   failure?: unknown;
+  failureCode?: unknown;
 };
 
 function normalizeStatus(raw: unknown): GenerationTask["status"] | null {
@@ -207,7 +244,7 @@ export const runwayEngine: ProductionEngine = {
     const body: Record<string, unknown> = {
       model: imageModel(),
       promptText: input.prompt,
-      ratio: input.aspectRatio ?? DEFAULT_IMAGE_RATIO,
+      ratio: imageRatio(input.aspectRatio),
     };
     if (input.referenceImageUrls?.length) {
       body["referenceImages"] = input.referenceImageUrls.map((uri, i) => ({
@@ -218,30 +255,40 @@ export const runwayEngine: ProductionEngine = {
     return submitTask("/text_to_image", body, input);
   },
 
-  /** POST /image_to_video */
+  /**
+   * POST /image_to_video — animates an existing still.
+   * Duration is clamped server-side to the provider's 5s/10s contract.
+   */
   async imageToVideo(input) {
+    if (!input.imageUrl) {
+      return fail({
+        code: "invalid_input",
+        provider: "runway",
+        message: "A start frame is required before a scene can be animated.",
+      });
+    }
     return submitTask(
       "/image_to_video",
       {
         model: videoModel(),
         promptImage: input.imageUrl,
         promptText: [input.prompt, input.motionDirection].filter(Boolean).join(" "),
-        ratio: input.aspectRatio ?? DEFAULT_VIDEO_RATIO,
-        duration: input.durationSeconds ?? 5,
+        ratio: videoRatio(input.aspectRatio),
+        duration: clampVideoDuration(input.durationSeconds),
       },
       input,
     );
   },
 
-  /** POST /image_to_video without promptImage (text-only on compatible models). */
+  /** POST /text_to_video — only for shots with no storyboard still. */
   async textToVideo(input) {
     return submitTask(
-      "/image_to_video",
+      "/text_to_video",
       {
-        model: videoModel(),
+        model: textVideoModel(),
         promptText: [input.prompt, input.motionDirection].filter(Boolean).join(" "),
-        ratio: input.aspectRatio ?? DEFAULT_VIDEO_RATIO,
-        duration: input.durationSeconds ?? 5,
+        ratio: videoRatio(input.aspectRatio),
+        duration: clampVideoDuration(input.durationSeconds),
       },
       input,
     );
@@ -288,7 +335,13 @@ export const runwayEngine: ProductionEngine = {
         // TEMPORARY URL — durable only once copied into `studio-assets`.
         outputUrl: status === "succeeded" ? firstOutputUrl(json.output) : null,
         failureReason:
-          status === "failed" && typeof json.failure === "string" ? json.failure : null,
+          status === "failed"
+            ? (typeof json.failure === "string"
+                ? json.failure
+                : typeof json.failureCode === "string"
+                  ? json.failureCode
+                  : "The production engine reported a failed task.")
+            : null,
       },
     };
   },
