@@ -8,7 +8,8 @@
 
 import { createServerFn } from "@tanstack/react-start";
 
-import type { GenerationTask, ServiceResult, UUID } from "./ai-types";
+import type { GenerationTask, ServiceResult } from "./ai-types";
+import type { UUID } from "./types";
 
 export interface SceneGenerationRequest {
   storyId: UUID | null;
@@ -34,8 +35,10 @@ const base = (input: SceneGenerationRequest) => ({
   storyId: input.storyId,
   sceneId: input.sceneId,
   worldId: input.worldId,
-  aspectRatio: input.aspectRatio,
-  referenceImageUrls: input.referenceImageUrls,
+  ...(input.aspectRatio ? { aspectRatio: input.aspectRatio } : {}),
+  ...(input.referenceImageUrls?.length
+    ? { referenceImageUrls: input.referenceImageUrls }
+    : {}),
 });
 
 export const generateSceneImage = createServerFn({ method: "POST" })
@@ -51,8 +54,10 @@ export const generateSceneVideo = createServerFn({ method: "POST" })
     const { productionEngine } = await import("./runway.server");
     const shared = {
       ...base(data),
-      motionDirection: data.motionDirection,
-      durationSeconds: data.durationSeconds,
+      ...(data.motionDirection ? { motionDirection: data.motionDirection } : {}),
+      ...(typeof data.durationSeconds === "number"
+        ? { durationSeconds: data.durationSeconds }
+        : {}),
     };
     return data.imageUrl
       ? productionEngine.imageToVideo({ ...shared, imageUrl: data.imageUrl })
