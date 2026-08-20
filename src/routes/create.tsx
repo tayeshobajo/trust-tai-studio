@@ -28,6 +28,9 @@ import { discoverStory, planDirection } from "@/lib/studio/studio-ai.functions";
 import { planStore } from "@/lib/studio/plan-store";
 import type { DirectorPlan, ServiceError, StoryDiscovery } from "@/lib/studio/ai-types";
 import type { SourceKind } from "@/lib/studio/types";
+import { planForOutputs, producibleOutputs } from "@/lib/studio/output-scenes";
+import { useSceneGeneration } from "@/lib/studio/use-scene-generation";
+import { SceneGenerationCard } from "@/components/studio/SceneGenerationCard";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/create")({
@@ -135,6 +138,37 @@ function ConfigurationState({ error }: { error: ServiceError }) {
   );
 }
 
+/** Typed Runway generation for whatever producible outputs were selected. */
+function OutputProduction({ plan }: { plan: DirectorPlan }) {
+  const { runs, start } = useSceneGeneration(plan, plan.storyId ?? null);
+
+  return (
+    <section className="mt-14">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 className="font-display text-3xl tracking-tight">Produce the visuals</h2>
+        <span className="font-mono text-[11px] text-muted-foreground">
+          {plan.scenes.length} scene{plan.scenes.length > 1 ? "s" : ""} · Runway
+        </span>
+      </div>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Each request is typed to a planned scene — Studio composes the prompt from the direction,
+        the browser never sends free-form instructions to the engine.
+      </p>
+
+      <div className="mt-6 space-y-4">
+        {plan.scenes.map((scene) => (
+          <SceneGenerationCard
+            key={scene.sceneNumber}
+            scene={scene}
+            run={runs[scene.sceneNumber]}
+            onGenerate={start}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function CreatePage() {
   const [mode, setMode] = useState<SourceKind>("text");
   const [text, setText] = useState("");
@@ -225,6 +259,11 @@ function CreatePage() {
     );
 
   const cinematicSelected = selected.includes("cinematic_film");
+  const producible = selected.some((f) => producibleOutputs.includes(f));
+  const productionPlan =
+    discovery && producible
+      ? planForOutputs({ discovery, world: worldContext, selected, directorPlan: plan })
+      : null;
 
   return (
     <SuiteShell>
@@ -461,6 +500,13 @@ function CreatePage() {
                 </div>
               ) : null}
             </section>
+          ) : null}
+
+          {productionPlan ? (
+            <OutputProduction
+              key={productionPlan.scenes.map((s) => s.sceneNumber).join("-")}
+              plan={productionPlan}
+            />
           ) : null}
         </div>
       </div>
