@@ -123,7 +123,7 @@ export async function createStory(input: {
       studio_id: ctx.studioId,
       world_id: ctx.worldId,
       title: input.discovery.title.trim(),
-      status: "drafting",
+      status: "draft",
       source_truth: input.discovery.sourceTruth,
       human_truth: input.discovery.deeperHumanTruth,
       deeper_truth: input.discovery.deeperHumanTruth,
@@ -215,7 +215,7 @@ export async function saveOutputs(input: {
   if (missing.length) {
     const { error } = await db
       .from("story_outputs")
-      .insert(missing.map((format) => ({ story_id: input.storyId, format, status: "drafting" })));
+      .insert(missing.map((format) => ({ story_id: input.storyId, format, status: "draft" })));
     if (error) return dbError(`Studio could not save the selected outputs (${error.message}).`);
   }
 
@@ -306,12 +306,19 @@ export async function saveDirectorPlan(input: {
   if (filmOutput?.["id"]) {
     await db
       .from("story_outputs")
-      .update({ status: "in_production", updated_at: new Date().toISOString() })
+      .update({
+        // Status vocabulary is constrained; direction readiness lives in metadata.
+        metadata: { direction: "ready", scenes: rows.length, directedAt: new Date().toISOString() },
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", filmOutput["id"] as UUID);
   } else {
-    await db
-      .from("story_outputs")
-      .insert({ story_id: input.storyId, format: "cinematic_film", status: "in_production" });
+    await db.from("story_outputs").insert({
+      story_id: input.storyId,
+      format: "cinematic_film",
+      status: "draft",
+      metadata: { direction: "ready", scenes: rows.length, directedAt: new Date().toISOString() },
+    });
   }
 
   const scenes = (inserted as Record<string, unknown>[])
