@@ -6,6 +6,7 @@
  * `studio-assets` bucket, which is why approval stays disabled here.
  */
 
+import { useState } from "react";
 import { AlertCircle, Clapperboard, Film, ImageIcon, Loader2, Sparkles, XCircle } from "lucide-react";
 
 import type { DirectorPlan, SceneDirection, SceneStatus } from "@/lib/studio/ai-types";
@@ -40,17 +41,34 @@ function errorHeadline(code: string): string {
 
 function TrackNote({ track }: { track: PilotTrack }) {
   return (
-    <p className="mt-2 font-mono text-[11px] text-muted-foreground">
-      {track.durable
-        ? "Stored in Studio · studio-assets"
-        : "Preview generated · not yet stored in Studio"}
-      {track.persisted ? " · task recorded" : " · task not recorded in the database"}
-      {!track.durable && track.durabilityNote ? ` · ${track.durabilityNote}` : ""}
-    </p>
+    <div className="mt-2">
+      <p
+        className={cn(
+          "text-[12px]",
+          track.durable ? "text-success" : "text-muted-foreground",
+        )}
+      >
+        {track.durable
+          ? "Stored in Studio · Ready for review"
+          : "Temporary preview from the production engine · not yet stored in Studio"}
+        {!track.durable && track.durabilityNote ? ` · ${track.durabilityNote}` : ""}
+      </p>
+      <details className="mt-1">
+        <summary className="cursor-pointer font-mono text-[11px] text-muted-foreground/70 select-none">
+          Details
+        </summary>
+        <dl className="mt-1 space-y-0.5 font-mono text-[11px] text-muted-foreground/80">
+          <div>Engine task · {track.taskId ?? "—"}</div>
+          <div>Studio storage · {track.storagePath ?? "not stored"}</div>
+          <div>Recorded in Studio · {track.persisted ? "yes" : "no"}</div>
+          <div>Status checks · {track.pollCount}</div>
+        </dl>
+      </details>
+    </div>
   );
 }
 
-/** Approve to World / Request changes for one finished track. */
+/** Approve to World / Request changes for one finished, durable track. */
 function ReviewActions({
   track,
   sceneNumber,
@@ -64,67 +82,102 @@ function ReviewActions({
   kind: "image" | "video";
   onApprove: (sceneNumber: number, kind: "image" | "video") => void;
   onReject: (sceneNumber: number, kind: "image" | "video") => void;
-  onRequestChanges: (sceneNumber: number, kind: "image" | "video") => void;
+  onRequestChanges: (sceneNumber: number, kind: "image" | "video", note: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
   const ready = track.durable && Boolean(track.assetId);
   const saving = track.review.phase === "saving";
   const blockedReason = !track.assetId
     ? "This generation was not recorded in Studio, so there is nothing to approve yet."
-    : "This frame is still a provider preview. Approval opens once it is stored in Studio.";
+    : "This is still a temporary provider preview. Review opens once it is stored in Studio.";
+
+  if (track.review.phase === "approved") {
+    return (
+      <p className="mt-4 border-t border-border pt-4 text-[13px] text-success">
+        Approved to World · canon in the Active World.
+      </p>
+    );
+  }
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
-      <button
-        type="button"
-        disabled={!ready || saving}
-        title={ready ? "Approve this to the Active World" : blockedReason}
-        onClick={() => onApprove(sceneNumber, kind)}
-        className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {saving ? (
-          <Loader2 className="size-3.5 animate-spin" strokeWidth={1.8} />
-        ) : (
-          <Sparkles className="size-3.5" strokeWidth={1.8} />
-        )}
-        {track.review.phase === "approved" ? "Approved to World" : "Approve to World"}
-      </button>
-      <button
-        type="button"
-        disabled={!ready || saving}
-        title={ready ? "Record what should change" : blockedReason}
-        onClick={() => onRequestChanges(sceneNumber, kind)}
-        className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <Clapperboard className="size-3.5" strokeWidth={1.8} />
-        Request changes
-      </button>
-      <button
-        type="button"
-        disabled={!track.assetId || saving}
-        title={
-          track.assetId
-            ? "Reject this asset — the scene goes back to ready to generate"
-            : blockedReason
-        }
-        onClick={() => onReject(sceneNumber, kind)}
-        className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <XCircle className="size-3.5" strokeWidth={1.8} />
-        {track.review.phase === "rejected" ? "Rejected" : "Reject"}
-      </button>
-      <span className="text-[12px] text-muted-foreground">
+    <div className="mt-4 border-t border-border pt-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={!ready || saving}
+          title={ready ? "Approve this to the Active World" : blockedReason}
+          onClick={() => onApprove(sceneNumber, kind)}
+          className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? (
+            <Loader2 className="size-3.5 animate-spin" strokeWidth={1.8} />
+          ) : (
+            <Sparkles className="size-3.5" strokeWidth={1.8} />
+          )}
+          Approve to World
+        </button>
+        <button
+          type="button"
+          disabled={!ready || saving}
+          title={ready ? "Record what Studio should learn" : blockedReason}
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Clapperboard className="size-3.5" strokeWidth={1.8} />
+          Request changes
+        </button>
+        <button
+          type="button"
+          disabled={!track.assetId || saving}
+          title={track.assetId ? "Reject this asset — the scene goes back for another pass" : blockedReason}
+          onClick={() => onReject(sceneNumber, kind)}
+          className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <XCircle className="size-3.5" strokeWidth={1.8} />
+          {track.review.phase === "rejected" ? "Rejected" : "Reject"}
+        </button>
+      </div>
+
+      {open ? (
+        <div className="mt-3">
+          <label htmlFor={`learn-${sceneNumber}-${kind}`} className="eyebrow">
+            What should Studio learn from this?
+          </label>
+          <textarea
+            id={`learn-${sceneNumber}-${kind}`}
+            rows={2}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="The character changed. / This does not feel like the Trust Tai World."
+            className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-3 text-[13px] leading-relaxed outline-none focus:border-royal"
+          />
+          <button
+            type="button"
+            disabled={note.trim().length < 3 || saving}
+            onClick={() => {
+              onRequestChanges(sceneNumber, kind, note.trim());
+              setOpen(false);
+              setNote("");
+            }}
+            className="mt-2 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-[13px] text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Save to the World's memory
+          </button>
+        </div>
+      ) : null}
+
+      <p className="mt-2 text-[12px] text-muted-foreground">
         {track.review.phase === "rejected"
-          ? "Rejected · asset marked out and the scene is back to ready to generate."
-          : track.review.phase === "approved"
-          ? "Recorded as canon in the Active World."
+          ? "Rejected · the scene is back to ready to generate."
           : track.review.phase === "changes_requested"
-            ? "Feedback saved to the World's creative memory · scene back for another pass."
+            ? "Saved to the World's creative memory · scene back for another pass."
             : track.review.error
               ? track.review.error
               : ready
-                ? "Stored in Studio · ready for the World."
-                : "Approval opens once this frame is stored in Studio."}
-      </span>
+                ? "Stored in Studio · nothing goes to the World without you."
+                : blockedReason}
+      </p>
     </div>
   );
 }
@@ -150,7 +203,7 @@ export function ScenePilotCard({
   onAnimate: (scene: SceneDirection) => void;
   onApprove: (sceneNumber: number, kind: "image" | "video") => void;
   onReject: (sceneNumber: number, kind: "image" | "video") => void;
-  onRequestChanges: (sceneNumber: number, kind: "image" | "video") => void;
+  onRequestChanges: (sceneNumber: number, kind: "image" | "video", note: string) => void;
 }) {
   const state = pilot ?? emptyScene(scene.sceneNumber);
   const image = state.image;
@@ -221,7 +274,6 @@ export function ScenePilotCard({
           {image.phase !== "idle" ? (
             <span className="font-mono text-[11px] text-muted-foreground">
               Image · {phaseCopy[image.phase]}
-              {image.taskId ? ` · task ${image.taskId.slice(0, 8)}` : ""}
             </span>
           ) : (
             <span className="font-mono text-[11px] text-muted-foreground">
@@ -286,7 +338,7 @@ export function ScenePilotCard({
             </button>
             <span className="font-mono text-[11px] text-muted-foreground">
               {video.phase !== "idle"
-                ? `Video · ${phaseCopy[video.phase]}${video.taskId ? ` · task ${video.taskId.slice(0, 8)}` : ""}`
+                ? `Video · ${phaseCopy[video.phase]}`
                 : `Start frame above · motion compiled · ${scene.durationSeconds}s requested`}
             </span>
           </div>
