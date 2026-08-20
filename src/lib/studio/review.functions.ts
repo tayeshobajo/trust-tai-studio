@@ -24,3 +24,14 @@ export const requestChanges = createServerFn({ method: "POST" })
     const { requestSceneChanges } = await import("./review.server");
     return requestSceneChanges(data);
   });
+
+/**
+ * Explicit rejection of a generated asset. The reason is optional but becomes
+ * part of the World's creative memory when given.
+ */
+export const rejectGeneratedAsset = createServerFn({ method: "POST" })
+  .inputValidator((input: { assetId: UUID; reason?: string | null }) => input)
+  .handler(async ({ data }): Promise<ServiceResult<ReviewOutcome>> => {
+    const { rejectAsset } = await import("./review.server");
+    return rejectAsset({ assetId: data.assetId, reason: data.reason ?? null });
+  });

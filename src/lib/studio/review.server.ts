@@ -203,3 +203,88 @@ export async function requestSceneChanges(input: {
     },
   };
 }
+
+/**
+ * Explicit rejection: the asset is out. Unlike "request changes", this is a
+ * verdict on the asset itself — it is marked rejected (never canon), the scene
+ * goes back to `ready_to_generate`, and the story status is recomputed.
+ */
+export async function rejectAsset(input: {
+  assetId: UUID;
+  reason?: string | null;
+}): Promise<ServiceResult<ReviewOutcome>> {
+  const db = getServerSupabase();
+  if (!db) return noDb();
+
+  const asset = await loadAsset(db, input.assetId);
+  if (!asset) {
+    return {
+      ok: false,
+      error: { code: "invalid_input", provider: "studio_storage", message: "That asset is not in Studio." },
+    };
+  }
+
+  const storyId = (asset["story_id"] as UUID | null) ?? null;
+  const sceneId = (asset["scene_id"] as UUID | null) ?? null;
+  const reason = input.reason?.trim() ?? null;
+
+  const { data: approval, error } = await db
+    .from("approvals")
+    .insert({
+      studio_id: asset["studio_id"],
+      story_id: storyId,
+      scene_id: sceneId,
+      asset_id: input.assetId,
+      status: "rejected",
+      note: reason,
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, error: { code: "provider_error", provider: "studio_storage", message: error.message } };
+  }
+
+  let feedbackId: UUID | null = null;
+  if (reason) {
+    const { data: feedbackRow } = await db
+      .from("creative_feedback")
+      .insert({
+        studio_id: asset["studio_id"],
+        world_id: asset["world_id"],
+        story_id: storyId,
+        scene_id: sceneId,
+        asset_id: input.assetId,
+        feedback: reason,
+        disposition: "rejected",
+      })
+      .select("id")
+      .maybeSingle();
+    feedbackId = (feedbackRow?.["id"] as UUID | undefined) ?? null;
+  }
+
+  await db.from("assets").update({ status: "rejected", is_canon: false }).eq("id", input.assetId);
+
+  let sceneStatus: SceneStatus | null = null;
+  if (sceneId) {
+    sceneStatus = "ready_to_generate";
+    await db
+      .from("scenes")
+      .update({ status: sceneStatus, updated_at: new Date().toISOString() })
+      .eq("id", sceneId);
+  }
+
+  return {
+    ok: true,
+    data: {
+      assetId: input.assetId,
+      approvalId: (approval?.["id"] as UUID | undefined) ?? null,
+      feedbackId,
+      assetStatus: "rejected",
+      sceneStatus,
+      storyStatus: await reconcileStory(db, storyId),
+      isCanon: false,
+    },
+  };
+}
+

@@ -192,7 +192,7 @@ export interface ReviewOutcome {
   approvalId: UUID | null;
   /** Creative feedback row id, when changes were requested. */
   feedbackId: UUID | null;
-  assetStatus: AssetStatus | "approved";
+  assetStatus: AssetStatus | "approved" | "rejected";
   sceneStatus: SceneStatus | null;
   storyStatus: string | null;
   isCanon: boolean;

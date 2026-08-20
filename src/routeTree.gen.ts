@@ -15,6 +15,7 @@ import { Route as CreateRouteImport } from './routes/create'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ProductionRouteImport } from './routes/production'
 import { Route as WorldRouteImport } from './routes/world'
+import { Route as ApiPublicProductionSweepRouteImport } from './routes/api/public/production-sweep'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,12 @@ const WorldRoute = WorldRouteImport.update({
   path: '/world',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicProductionSweepRoute =
+  ApiPublicProductionSweepRouteImport.update({
+    id: '/api/public/production-sweep',
+    path: '/api/public/production-sweep',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/production': typeof ProductionRoute
   '/world': typeof WorldRoute
+  '/api/public/production-sweep': typeof ApiPublicProductionSweepRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +70,7 @@ export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
   '/production': typeof ProductionRoute
   '/world': typeof WorldRoute
+  '/api/public/production-sweep': typeof ApiPublicProductionSweepRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,13 +80,27 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/production': typeof ProductionRoute
   '/world': typeof WorldRoute
+  '/api/public/production-sweep': typeof ApiPublicProductionSweepRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/approvals' | '/create' | '/library' | '/production' | '/world'
+    | '/'
+    | '/approvals'
+    | '/create'
+    | '/library'
+    | '/production'
+    | '/world'
+    | '/api/public/production-sweep'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/approvals' | '/create' | '/library' | '/production' | '/world'
+  to:
+    | '/'
+    | '/approvals'
+    | '/create'
+    | '/library'
+    | '/production'
+    | '/world'
+    | '/api/public/production-sweep'
   id:
     | '__root__'
     | '/'
@@ -86,6 +109,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/production'
     | '/world'
+    | '/api/public/production-sweep'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,6 +119,7 @@ export interface RootRouteChildren {
   LibraryRoute: typeof LibraryRoute
   ProductionRoute: typeof ProductionRoute
   WorldRoute: typeof WorldRoute
+  ApiPublicProductionSweepRoute: typeof ApiPublicProductionSweepRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -141,6 +166,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorldRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/production-sweep': {
+      id: '/api/public/production-sweep'
+      path: '/api/public/production-sweep'
+      fullPath: '/api/public/production-sweep'
+      preLoaderRoute: typeof ApiPublicProductionSweepRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -151,6 +183,7 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryRoute: LibraryRoute,
   ProductionRoute: ProductionRoute,
   WorldRoute: WorldRoute,
+  ApiPublicProductionSweepRoute: ApiPublicProductionSweepRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

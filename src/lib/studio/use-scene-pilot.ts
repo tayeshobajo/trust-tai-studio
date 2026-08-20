@@ -18,11 +18,12 @@ import {
   generateSceneImage,
   generateSceneVideo,
 } from "./production.functions";
-import { approveAsset, requestChanges } from "./review.functions";
+import { approveAsset, rejectGeneratedAsset, requestChanges } from "./review.functions";
 import { compileMotionPrompt, compileStoryboardPrompt, sceneContext } from "./scene-prompt";
 import {
   emptyScene,
   pilotStore,
+  type PilotEvent,
   type PilotReview,
   type PilotState,
   type PilotTrack,
@@ -40,6 +41,7 @@ export function useScenePilot(plan: DirectorPlan) {
   const submitVideo = useServerFn(generateSceneVideo);
   const poll = useServerFn(checkGenerationStatus);
   const approve = useServerFn(approveAsset);
+  const reject = useServerFn(rejectGeneratedAsset);
   const askForChanges = useServerFn(requestChanges);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const stateRef = useRef<PilotState>({});
@@ -59,14 +61,24 @@ export function useScenePilot(plan: DirectorPlan) {
   );
 
   const patch = useCallback(
-    (sceneNumber: number, track: TrackName, next: Partial<PilotTrack>, provenance?: Partial<ScenePilotProvenance>) => {
+    (
+      sceneNumber: number,
+      track: TrackName,
+      next: Partial<PilotTrack>,
+      provenance?: Partial<ScenePilotProvenance>,
+      event?: Omit<PilotEvent, "at">,
+    ) => {
       setState((prev) => {
         const scene = prev[sceneNumber] ?? emptyScene(sceneNumber);
+        const previous = scene[track];
+        const events = event
+          ? [...(previous.events ?? []), { ...event, at: new Date().toISOString() }].slice(-12)
+          : (previous.events ?? []);
         const updated: PilotState = {
           ...prev,
           [sceneNumber]: {
             ...scene,
-            [track]: { ...scene[track], ...next },
+            [track]: { ...previous, ...next, events },
             provenance: { ...scene.provenance, ...(provenance ?? {}) },
           },
         };
@@ -82,6 +94,17 @@ export function useScenePilot(plan: DirectorPlan) {
     (sceneNumber: number, track: TrackName, tracked: TrackedGenerationTask) => {
       const { task } = tracked;
       const settled = task.status === "succeeded" || task.status === "failed";
+      const event: Omit<PilotEvent, "at"> | undefined =
+        task.status === "succeeded"
+          ? {
+              label: tracked.durable
+                ? "Returned and stored in Studio"
+                : "Returned from the production engine",
+              tone: "good",
+            }
+          : task.status === "failed"
+            ? { label: task.failureReason ?? "The provider reported a failed task", tone: "bad" }
+            : undefined;
       patch(sceneNumber, track, {
         phase:
           task.status === "succeeded"
@@ -107,7 +130,7 @@ export function useScenePilot(plan: DirectorPlan) {
               }
             : null,
         ...(settled ? { completedAt: new Date().toISOString() } : {}),
-      });
+      }, undefined, event);
       return task.status;
     },
     [patch],
@@ -127,6 +150,10 @@ export function useScenePilot(plan: DirectorPlan) {
           });
           return;
         }
+        patch(sceneNumber, track, {
+          lastPolledAt: new Date().toISOString(),
+          pollCount: (stateRef.current[sceneNumber]?.[track].pollCount ?? 0) + 1,
+        });
         let result;
         try {
           result = await poll({ data: { providerTaskId: taskId } });
@@ -185,6 +212,7 @@ export function useScenePilot(plan: DirectorPlan) {
           completedAt: null,
         },
         { imagePrompt: prompt, ratio: STORYBOARD_RATIO },
+        { label: "Prompt compiled from the direction · sent to the production engine" },
       );
 
       let result;
@@ -215,6 +243,11 @@ export function useScenePilot(plan: DirectorPlan) {
       }
       const status = applyTracked(scene.sceneNumber, "image", result.data);
       const taskId = result.data.task.provenance.providerTaskId;
+      if (taskId) {
+        patch(scene.sceneNumber, "image", {}, undefined, {
+          label: `Accepted by the production engine · task ${taskId.slice(0, 8)}`,
+        });
+      }
       if (taskId && (status === "queued" || status === "running")) {
         schedulePoll(scene.sceneNumber, "image", taskId);
       }
@@ -240,6 +273,7 @@ export function useScenePilot(plan: DirectorPlan) {
           completedAt: null,
         },
         { motionPrompt: prompt, durationSeconds: scene.durationSeconds },
+        { label: "Motion compiled · start frame sent to the production engine" },
       );
 
       let result;
@@ -272,6 +306,11 @@ export function useScenePilot(plan: DirectorPlan) {
       }
       const status = applyTracked(scene.sceneNumber, "video", result.data);
       const taskId = result.data.task.provenance.providerTaskId;
+      if (taskId) {
+        patch(scene.sceneNumber, "video", {}, undefined, {
+          label: `Accepted by the production engine · task ${taskId.slice(0, 8)}`,
+        });
+      }
       if (taskId && (status === "queued" || status === "running")) {
         schedulePoll(scene.sceneNumber, "video", taskId);
       }
@@ -339,6 +378,34 @@ export function useScenePilot(plan: DirectorPlan) {
     [askForChanges, setReview],
   );
 
+  /** Explicit rejection: the asset is out and the scene goes back for a pass. */
+  const rejectTrack = useCallback(
+    async (sceneNumber: number, track: TrackName, reason?: string) => {
+      const assetId = stateRef.current[sceneNumber]?.[track].assetId;
+      if (!assetId) return;
+      setReview(sceneNumber, track, { phase: "saving", error: null });
+      try {
+        const result = await reject({ data: { assetId, reason: reason ?? null } });
+        setReview(
+          sceneNumber,
+          track,
+          result.ok
+            ? { phase: "rejected", note: reason ?? null, error: null }
+            : { phase: "failed", error: result.error.message },
+        );
+        if (result.ok) {
+          patch(sceneNumber, track, {}, undefined, { label: "Rejected · scene sent back", tone: "bad" });
+        }
+      } catch {
+        setReview(sceneNumber, track, {
+          phase: "failed",
+          error: "Studio could not record that rejection.",
+        });
+      }
+    },
+    [patch, reject, setReview],
+  );
+
   const reset = useCallback(() => {
     Object.values(timers.current).forEach(clearTimeout);
     timers.current = {};
@@ -352,6 +419,7 @@ export function useScenePilot(plan: DirectorPlan) {
     generateStoryboard,
     animateScene,
     approveTrack,
+    rejectTrack,
     requestTrackChanges,
     reset,
   };

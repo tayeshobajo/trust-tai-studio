@@ -179,3 +179,9 @@
     transparent 200px
   );
 }
+
+/* Indeterminate "working" sweep for live generation progress bars. */
+@keyframes tt-scan {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
+}

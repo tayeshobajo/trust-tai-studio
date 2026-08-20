@@ -11,8 +11,14 @@ import { cn } from "@/lib/utils";
 
 function DirectorPlanPanel({ stored }: { stored: StoredPlan }) {
   const { plan, discovery } = stored;
-  const { state, generateStoryboard, animateScene, approveTrack, requestTrackChanges } =
-    useScenePilot(plan);
+  const {
+    state,
+    generateStoryboard,
+    animateScene,
+    approveTrack,
+    rejectTrack,
+    requestTrackChanges,
+  } = useScenePilot(plan);
 
   // One scene at a time: while any track is in flight, other scenes wait.
   const busyScene = Object.values(state).find(
@@ -62,6 +68,10 @@ function DirectorPlanPanel({ stored }: { stored: StoredPlan }) {
               onGenerateImage={(s) => void generateStoryboard(s)}
               onAnimate={(s) => void animateScene(s)}
               onApprove={(sceneNumber, kind) => void approveTrack(sceneNumber, kind)}
+              onReject={(sceneNumber, kind) => {
+                const reason = window.prompt("Why is this asset out? (optional)");
+                void rejectTrack(sceneNumber, kind, reason?.trim() || undefined);
+              }}
               onRequestChanges={(sceneNumber, kind) => {
                 const note = window.prompt("What should change in this scene?");
                 if (note?.trim()) void requestTrackChanges(sceneNumber, kind, note.trim());
