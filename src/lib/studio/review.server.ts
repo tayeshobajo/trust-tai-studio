@@ -198,7 +198,8 @@ export async function requestSceneChanges(input: {
       scene_id: sceneId,
       asset_id: input.assetId,
       feedback: trimmed,
-      disposition: "changes_requested",
+      classification: classifyFeedback(trimmed),
+      disposition: "observation",
     })
     .select("id")
     .maybeSingle();
@@ -291,7 +292,8 @@ export async function rejectAsset(input: {
         scene_id: sceneId,
         asset_id: input.assetId,
         feedback: reason,
-        disposition: "rejected",
+        classification: classifyFeedback(reason),
+        disposition: "rejected_pattern",
       })
       .select("id")
       .maybeSingle();
