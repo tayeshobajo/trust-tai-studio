@@ -193,7 +193,10 @@ function StoryReviewCard({ story, onDone }: { story: StoryReviewItem; onDone: ()
   const approving = useMutation({
     mutationFn: () => approveFn({ data: { storyId: story.storyId } }),
     onSuccess: (r) => {
-      if (!r.ok) return toast("Could not approve", { description: r.error.message });
+      if (!r.ok) {
+        toast("Could not approve", { description: r.error.message });
+        return;
+      }
       toast("Story approved", { description: `${story.title} is moving forward.` });
       onDone();
     },
@@ -202,7 +205,10 @@ function StoryReviewCard({ story, onDone }: { story: StoryReviewItem; onDone: ()
   const rejecting = useMutation({
     mutationFn: (text: string) => rejectFn({ data: { storyId: story.storyId, reason: text } }),
     onSuccess: (r) => {
-      if (!r.ok) return toast("Could not reject", { description: r.error.message });
+      if (!r.ok) {
+        toast("Could not reject", { description: r.error.message });
+        return;
+      }
       toast("Sent back", { description: "Studio will remember why." });
       setOpen(false);
       setReason("");
