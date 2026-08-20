@@ -139,10 +139,12 @@ export function useScenePilot(plan: DirectorPlan) {
     [applyTracked, patch, poll],
   );
 
-  // Resume polling for tracks that were still running when the page reloaded.
+  // Resume polling once for tracks that were still running when the page reloaded.
+  const resumed = useRef(false);
   useEffect(() => {
-    const restored = stateRef.current;
-    Object.values(restored).forEach((scene) => {
+    if (resumed.current || !Object.keys(state).length) return;
+    resumed.current = true;
+    Object.values(state).forEach((scene) => {
       (["image", "video"] as TrackName[]).forEach((track) => {
         const t = scene[track];
         if ((t.phase === "running" || t.phase === "submitting") && t.taskId) {
@@ -150,9 +152,7 @@ export function useScenePilot(plan: DirectorPlan) {
         }
       });
     });
-    // Runs once, after the restore effect above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.__restored__ as unknown]);
+  }, [state, schedulePoll]);
 
   const generateStoryboard = useCallback(
     async (scene: SceneDirection) => {
