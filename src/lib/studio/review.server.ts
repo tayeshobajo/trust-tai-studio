@@ -116,7 +116,25 @@ export async function approveAssetToWorld(input: {
     };
   }
 
-  await db.from("assets").update({ status: "ready", is_canon: true }).eq("id", input.assetId);
+  await db.from("assets").update({ status: "approved", is_canon: true }).eq("id", input.assetId);
+
+  // A human approval is creative memory too: record it as an approved pattern
+  // so future Studio AI passes can learn what the World accepts.
+  const approvalNote = input.note?.trim() || "Approved to the World as canon.";
+  const { data: feedbackRow } = await db
+    .from("creative_feedback")
+    .insert({
+      studio_id: asset["studio_id"],
+      world_id: asset["world_id"],
+      story_id: storyId,
+      scene_id: sceneId,
+      asset_id: input.assetId,
+      feedback: approvalNote,
+      classification: input.note?.trim() ? classifyFeedback(input.note) : "world",
+      disposition: "approved_pattern",
+    })
+    .select("id")
+    .maybeSingle();
 
   let sceneStatus: SceneStatus | null = null;
   if (sceneId) {
@@ -132,7 +150,7 @@ export async function approveAssetToWorld(input: {
     data: {
       assetId: input.assetId,
       approvalId: (approval?.["id"] as UUID | undefined) ?? null,
-      feedbackId: null,
+      feedbackId: (feedbackRow?.["id"] as UUID | undefined) ?? null,
       assetStatus: "approved",
       sceneStatus,
       storyStatus: await reconcileStory(db, storyId),
