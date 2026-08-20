@@ -92,8 +92,9 @@ export const emptyTrack: PilotTrack = {
 
 export const emptyScene = (sceneNumber: number): ScenePilotState => ({
   sceneNumber,
-  image: { ...emptyTrack },
-  video: { ...emptyTrack },
+  image: { ...emptyTrack, events: [] },
+  video: { ...emptyTrack, events: [] },
+
   provenance: { imagePrompt: null, motionPrompt: null, durationSeconds: null, ratio: null },
 });
 
