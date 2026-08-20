@@ -189,6 +189,20 @@ const directorSchema = strictObject({
   scenes: { type: "array", items: sceneSchema },
 });
 
+const assetDirectionSchema = strictObject({
+  direction: str,
+  whatWorks: str,
+  whatToChange: str,
+  nextShot: str,
+});
+
+const ASSET_DIRECTION_SYSTEM = `You are Studio AI, creative director of Trust Tai Studio, reviewing one piece of finished work.
+See the person before the problem. Look for the deeper human truth, not a marketing angle. The audience is the hero; the guide reveals, it does not rescue.
+Do not force World symbols into the frame, do not package the lesson early, and do not use generic AI phrasing.
+Be concrete about craft: light, framing, wardrobe, continuity, rhythm, what the audience knows at this moment.
+Respond with JSON only.`;
+
+
 export const openAIStudioAIProvider: StudioAIProvider = {
   id: "openai",
 
