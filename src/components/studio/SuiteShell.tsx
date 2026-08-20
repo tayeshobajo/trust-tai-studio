@@ -33,7 +33,7 @@ const studioNav: NavItem[] = [
 
 const productionNav: NavItem[] = [
   { label: "In Production", icon: Clapperboard, to: "/production" },
-  { label: "Approvals", icon: CheckSquare, to: "/approvals", badge: "3" },
+  { label: "Approvals", icon: CheckSquare, to: "/approvals" },
   { label: "World", icon: Globe, to: "/world" },
 ];
 
