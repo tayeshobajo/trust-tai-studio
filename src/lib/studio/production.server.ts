@@ -40,6 +40,10 @@ const untracked = (
   persistenceNote: note,
   sceneStatus: null,
   storyStatus: null,
+  durable: false,
+  storagePath: null,
+  durableUrl: null,
+  durabilityNote: note,
 });
 
 const assetStatusFor = (status: GenerationTask["status"]): AssetStatus =>
@@ -143,6 +147,10 @@ export async function recordGenerationStart(
     persistenceNote: null,
     sceneStatus,
     storyStatus,
+    durable: false,
+    storagePath: null,
+    durableUrl: null,
+    durabilityNote: "Submitted — nothing to store until the task returns.",
   };
 }
 
@@ -154,6 +162,7 @@ export async function recordGenerationProgress(
   task: GenerationTask,
   durableUrl: string | null,
   storagePath: string | null,
+  durabilityNote: string | null = null,
 ): Promise<TrackedGenerationTask> {
   const assetStatus = assetStatusFor(task.status);
   const db = getServerSupabase();
@@ -204,5 +213,9 @@ export async function recordGenerationProgress(
     persistenceNote: null,
     sceneStatus,
     storyStatus,
+    durable: Boolean(storagePath),
+    storagePath,
+    durableUrl,
+    durabilityNote: storagePath ? null : durabilityNote,
   };
 }
