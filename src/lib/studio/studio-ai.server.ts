@@ -122,6 +122,7 @@ const discoverySchema = strictObject({
 
 const sceneSchema = strictObject({
   sceneNumber: { type: "integer" },
+  title: str,
   narrativePurpose: str,
   emotion: str,
   characterRefs: strArray,
@@ -141,6 +142,7 @@ const sceneSchema = strictObject({
   durationSeconds: { type: "number" },
   requiredAssetType: { type: "string", enum: ["image", "video", "audio"] },
   continuityNotes: str,
+  directorNotes: str,
 });
 
 const directorSchema = strictObject({
