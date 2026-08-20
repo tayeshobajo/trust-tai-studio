@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { CheckCircle2, MessageSquare, Sparkles } from "lucide-react";
+import { CheckCircle2, Clapperboard, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
-import { approvals, formatLabels } from "@/lib/studio-data";
-import { cn } from "@/lib/utils";
+import { listReviewQueue } from "@/lib/studio/assets.functions";
+import { approveAsset, requestChanges } from "@/lib/studio/review.functions";
+import type { StudioAssetSummary } from "@/lib/studio/assets.server";
 
 export const Route = createFileRoute("/approvals")({
   head: () => ({
@@ -14,7 +17,7 @@ export const Route = createFileRoute("/approvals")({
       {
         name: "description",
         content:
-          "Stories waiting on a human decision: read the latest Studio AI draft and feedback, then approve or request changes.",
+          "Work stored in Studio and waiting on a human decision: approve it to the World, or tell Studio what should change.",
       },
       { property: "og:title", content: "Approvals — Trust Tai Studio" },
       {
@@ -28,27 +31,162 @@ export const Route = createFileRoute("/approvals")({
   component: ApprovalsPage,
 });
 
-type Decision = "approved" | "changes";
+function formatDate(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
-function ApprovalsPage() {
-  const [selectedId, setSelectedId] = useState(approvals[0]?.id ?? "");
-  const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+function ReviewCard({
+  asset,
+  onDone,
+}: {
+  asset: StudioAssetSummary;
+  onDone: () => void;
+}) {
+  const approve = useServerFn(approveAsset);
+  const askForChanges = useServerFn(requestChanges);
+  const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
 
-  const item = approvals.find((a) => a.id === selectedId) ?? approvals[0]!;
-  const decision = decisions[item.id];
-  const pending = approvals.filter((a) => !decisions[a.id]).length;
+  const approving = useMutation({
+    mutationFn: () => approve({ data: { assetId: asset.assetId, note: null } }),
+    onSuccess: (result) => {
+      if (result.ok) {
+        toast("Approved to World", { description: "Recorded as canon in the Active World." });
+        onDone();
+      } else {
+        toast("Not approved", { description: result.error.message });
+      }
+    },
+  });
 
-  const decide = (d: Decision) => {
-    setDecisions((prev) => ({ ...prev, [item.id]: d }));
-    setNote("");
-    toast(d === "approved" ? "Approved" : "Changes requested", {
-      description:
-        d === "approved"
-          ? `${item.storyTitle} moves forward.`
-          : `Studio AI will revise ${item.storyTitle}.`,
-    });
+  const changing = useMutation({
+    mutationFn: (feedback: string) =>
+      askForChanges({ data: { assetId: asset.assetId, feedback } }),
+    onSuccess: (result) => {
+      if (result.ok) {
+        toast("Saved to the World's memory", {
+          description: "The scene is back for another pass.",
+        });
+        setOpen(false);
+        setNote("");
+        onDone();
+      } else {
+        toast("Not saved", { description: result.error.message });
+      }
+    },
+  });
+
+  const busy = approving.isPending || changing.isPending;
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-border bg-card shadow-tt">
+      {asset.previewUrl ? (
+        asset.assetType === "video" ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <video src={asset.previewUrl} controls playsInline className="aspect-video w-full object-cover" />
+        ) : (
+          <img
+            src={asset.previewUrl}
+            alt={
+              asset.storyTitle
+                ? `Frame from ${asset.storyTitle}`
+                : "Generated frame awaiting review"
+            }
+            loading="lazy"
+            className="aspect-video w-full object-cover"
+          />
+        )
+      ) : (
+        <div className="flex aspect-video w-full items-center justify-center bg-secondary text-[12px] text-muted-foreground">
+          Preview link unavailable
+        </div>
+      )}
+
+      <div className="p-5">
+        <div className="eyebrow truncate">
+          {asset.assetType === "video" ? "Film" : "Image"}
+          {asset.worldName ? ` · ${asset.worldName}` : ""}
+        </div>
+        <h2 className="mt-1 truncate font-display text-xl leading-tight">
+          {asset.storyTitle ?? "Untitled Story"}
+        </h2>
+        <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+          {asset.sceneNumber != null ? `Scene ${String(asset.sceneNumber).padStart(2, "0")} · ` : ""}
+          Stored in Studio · Ready for review
+          {asset.createdAt ? ` · ${formatDate(asset.createdAt)}` : ""}
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => approving.mutate()}
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-[13px] text-primary-foreground disabled:opacity-50"
+          >
+            {approving.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" strokeWidth={1.8} />
+            ) : (
+              <Sparkles className="size-3.5" strokeWidth={1.8} />
+            )}
+            Approve to World
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] transition-colors hover:bg-secondary disabled:opacity-50"
+          >
+            <Clapperboard className="size-3.5" strokeWidth={1.8} />
+            Request changes
+          </button>
+        </div>
+
+        {open ? (
+          <div className="mt-3">
+            <label htmlFor={`learn-${asset.assetId}`} className="eyebrow">
+              What should Studio learn from this?
+            </label>
+            <textarea
+              id={`learn-${asset.assetId}`}
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="The character changed. / This does not feel like the Trust Tai World."
+              className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-3 text-[13px] leading-relaxed outline-none focus:border-royal"
+            />
+            <button
+              type="button"
+              disabled={note.trim().length < 3 || busy}
+              onClick={() => changing.mutate(note.trim())}
+              className="mt-2 inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[13px] hover:bg-secondary disabled:opacity-50"
+            >
+              Save to the World's memory
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function ApprovalsPage() {
+  const fetchQueue = useServerFn(listReviewQueue);
+  const queryClient = useQueryClient();
+  const { data, isPending } = useQuery({
+    queryKey: ["studio", "review-queue"],
+    queryFn: () => fetchQueue(),
+  });
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["studio", "review-queue"] });
   };
+
+  const items = data?.ok ? data.data : [];
 
   return (
     <SuiteShell>
@@ -59,136 +197,46 @@ function ApprovalsPage() {
             Nothing goes out without you.
           </h1>
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-            {pending} {pending === 1 ? "item is" : "items are"} waiting on a decision.
+            Work that is stored in Studio and waiting on a human decision.
           </p>
 
-          <div className="mt-8 grid gap-6 lg:grid-cols-[340px_1fr]">
-            {/* Queue */}
-            <ul className="space-y-3">
-              {approvals.map((a) => {
-                const d = decisions[a.id];
-                return (
-                  <li key={a.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedId(a.id)}
-                      className={cn(
-                        "flex w-full gap-3 rounded-xl border p-3 text-left transition-colors",
-                        a.id === item.id
-                          ? "border-royal bg-card shadow-tt"
-                          : "border-border bg-card/60 hover:bg-secondary",
-                      )}
-                    >
-                      <img
-                        src={a.image}
-                        alt=""
-                        width={512}
-                        height={512}
-                        loading="lazy"
-                        className="size-14 shrink-0 rounded-lg object-cover"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="eyebrow block truncate">{formatLabels[a.format]}</span>
-                        <span className="block truncate text-sm font-medium">{a.storyTitle}</span>
-                        <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                          {d
-                            ? d === "approved"
-                              ? "Approved"
-                              : "Changes requested"
-                            : a.submittedLabel}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-
-            {/* Detail */}
-            <section className="rounded-2xl border border-border bg-card p-6 shadow-tt-md lg:p-8">
-              <div className="eyebrow">{formatLabels[item.format]}</div>
-              <h2 className="mt-1 font-display text-3xl leading-tight tracking-tight">
-                {item.storyTitle}
-              </h2>
-              <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                {item.submittedLabel} · Waiting on: {item.waitingOn}
+          {isPending ? (
+            <p className="mt-8 flex items-center gap-2 font-mono text-[12px] text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin" strokeWidth={1.8} />
+              Reading the review queue…
+            </p>
+          ) : data && !data.ok ? (
+            <div className="mt-8 rounded-2xl border border-dashed border-border p-8">
+              <p className="font-display text-xl">Studio memory is not connected yet.</p>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                The review queue reads durable assets from Studio storage. Add these server
+                environment variables to this environment and the queue will populate itself:
               </p>
-
-              <img
-                src={item.image}
-                alt=""
-                width={1200}
-                height={750}
-                loading="lazy"
-                className="mt-6 h-52 w-full rounded-xl object-cover"
-              />
-
-              <div className="mt-6">
-                <div className="eyebrow">Latest Studio AI draft</div>
-                <p className="mt-2 text-[15px] leading-relaxed">{item.draft}</p>
+              <ul className="mt-3 space-y-1 font-mono text-[12px] text-muted-foreground">
+                <li>SUPABASE_URL</li>
+                <li>SUPABASE_SERVICE_ROLE_KEY</li>
+              </ul>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="mt-8 rounded-2xl border border-dashed border-border p-12 text-center">
+              <p className="font-display text-xl">Nothing is waiting on you.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Generated work appears here once it is stored in Studio.
+              </p>
+            </div>
+          ) : (
+            <>
+              <p className="mt-8 flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+                <CheckCircle2 className="size-3.5" strokeWidth={1.75} />
+                {items.length} {items.length === 1 ? "item is" : "items are"} waiting on a decision.
+              </p>
+              <div className="mt-4 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                {items.map((asset) => (
+                  <ReviewCard key={asset.assetId} asset={asset} onDone={invalidate} />
+                ))}
               </div>
-
-              <div className="mt-6 rounded-xl border border-royal/30 bg-royal-soft/60 p-5">
-                <div className="eyebrow flex items-center gap-2 text-royal">
-                  <Sparkles className="size-3.5" strokeWidth={1.75} />
-                  Studio AI feedback
-                </div>
-                <p className="mt-2 text-[15px] leading-relaxed">{item.directorNote}</p>
-              </div>
-
-              {decision ? (
-                <div
-                  className={cn(
-                    "mt-6 flex items-center gap-2 rounded-xl border p-4 text-sm",
-                    decision === "approved"
-                      ? "border-success/30 text-success"
-                      : "border-border text-foreground/80",
-                  )}
-                >
-                  {decision === "approved" ? (
-                    <CheckCircle2 className="size-4" strokeWidth={1.75} />
-                  ) : (
-                    <MessageSquare className="size-4" strokeWidth={1.75} />
-                  )}
-                  {decision === "approved"
-                    ? "You approved this. It moves into production."
-                    : "Changes requested. Studio AI will bring a revision back here."}
-                </div>
-              ) : (
-                <div className="mt-6 border-t border-border pt-6">
-                  <label htmlFor="feedback" className="eyebrow">
-                    Your direction (optional)
-                  </label>
-                  <textarea
-                    id="feedback"
-                    rows={3}
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="What should change, and why does it matter?"
-                    className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-4 text-sm leading-relaxed outline-none focus:border-royal"
-                  />
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => decide("approved")}
-                      className="inline-flex h-12 items-center gap-2 rounded-full bg-primary px-6 text-sm font-medium text-primary-foreground transition-transform hover:-translate-y-0.5"
-                    >
-                      <CheckCircle2 className="size-4" strokeWidth={1.75} />
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => decide("changes")}
-                      className="inline-flex h-12 items-center gap-2 rounded-full border border-border px-6 text-sm font-medium transition-colors hover:bg-secondary"
-                    >
-                      <MessageSquare className="size-4" strokeWidth={1.75} />
-                      Request changes
-                    </button>
-                  </div>
-                </div>
-              )}
-            </section>
-          </div>
+            </>
+          )}
         </div>
       </div>
     </SuiteShell>
