@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
+import { StudioAIStatus } from "@/components/studio/StudioAIStatus";
 import {
   activeWorld,
   formatLabels,
