@@ -106,20 +106,32 @@ export async function recordGenerationStart(
   const { storyId, sceneId, worldId, prompt, providerTaskId } = task.provenance;
   const resolvedSceneId = await resolveSceneId(db, storyId, sceneId, input.sceneNumber);
 
+  // Active Studio / World are resolved server-side, never sent by the browser.
+  const context = await resolveStudioContext();
+  const studioId = input.studioId ?? context.studioId;
+  const resolvedWorldId = worldId ?? context.worldId;
+
   const { data, error } = await db
     .from("assets")
     .insert({
-      studio_id: input.studioId ?? null,
+      studio_id: studioId,
       story_id: storyId,
       scene_id: resolvedSceneId,
-      world_id: worldId,
+      world_id: resolvedWorldId,
       asset_type: input.assetType,
       status: assetStatus,
       provider: "runway",
       provider_task_id: providerTaskId,
       prompt,
       generation_settings: input.generationSettings ?? {},
-      provenance: { ...task.provenance, sceneNumber: input.sceneNumber },
+      provenance: {
+        ...task.provenance,
+        studioId,
+        worldId: resolvedWorldId,
+        sceneNumber: input.sceneNumber,
+        assetType: input.assetType,
+        submittedAt: new Date().toISOString(),
+      },
     })
     .select("id")
     .maybeSingle();
