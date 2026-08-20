@@ -20,7 +20,7 @@ export interface ServiceError {
   /** Human-readable, safe to show. Never contains credentials or raw provider payloads. */
   message: string;
   /** Which provider the failure belongs to, for honest UI states. */
-  provider: "studio_ai" | "runway";
+  provider: "studio_ai" | "runway" | "studio_storage";
 }
 
 export type ServiceResult<T> = { ok: true; data: T } | { ok: false; error: ServiceError };

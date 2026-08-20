@@ -15,7 +15,7 @@ import { getServerSupabase, NO_DATABASE_NOTE } from "./db.server";
 
 const noDb = (): ServiceResult<ReviewOutcome> => ({
   ok: false,
-  error: { code: "provider_not_configured", provider: "supabase", message: NO_DATABASE_NOTE },
+  error: { code: "provider_not_configured", provider: "studio_storage", message: NO_DATABASE_NOTE },
 });
 
 async function reconcileStory(
@@ -61,7 +61,7 @@ export async function approveAssetToWorld(input: {
   if (!asset) {
     return {
       ok: false,
-      error: { code: "invalid_input", provider: "supabase", message: "That asset is not in Studio." },
+      error: { code: "invalid_input", provider: "studio_storage", message: "That asset is not in Studio." },
     };
   }
   if (!asset["storage_path"]) {
@@ -69,7 +69,7 @@ export async function approveAssetToWorld(input: {
       ok: false,
       error: {
         code: "invalid_input",
-        provider: "supabase",
+        provider: "studio_storage",
         message:
           "This frame is still a provider preview. It has to be stored in Studio before it can be approved to the World.",
       },
@@ -95,7 +95,7 @@ export async function approveAssetToWorld(input: {
   if (approvalError) {
     return {
       ok: false,
-      error: { code: "unknown", provider: "supabase", message: approvalError.message },
+      error: { code: "provider_error", provider: "studio_storage", message: approvalError.message },
     };
   }
 
@@ -134,7 +134,7 @@ export async function requestSceneChanges(input: {
       ok: false,
       error: {
         code: "invalid_input",
-        provider: "supabase",
+        provider: "studio_storage",
         message: "Say what should change — the note becomes part of the World's creative memory.",
       },
     };
@@ -147,7 +147,7 @@ export async function requestSceneChanges(input: {
   if (!asset) {
     return {
       ok: false,
-      error: { code: "invalid_input", provider: "supabase", message: "That asset is not in Studio." },
+      error: { code: "invalid_input", provider: "studio_storage", message: "That asset is not in Studio." },
     };
   }
 
@@ -169,7 +169,7 @@ export async function requestSceneChanges(input: {
     .maybeSingle();
 
   if (error) {
-    return { ok: false, error: { code: "unknown", provider: "supabase", message: error.message } };
+    return { ok: false, error: { code: "provider_error", provider: "studio_storage", message: error.message } };
   }
 
   await db.from("approvals").insert({
