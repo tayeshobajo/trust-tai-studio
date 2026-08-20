@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
+import { AssetMemory } from "@/components/studio/AssetMemory";
 import { listLibraryAssets } from "@/lib/studio/assets.functions";
 import type { StudioAssetSummary } from "@/lib/studio/assets.server";
 import { cn } from "@/lib/utils";
