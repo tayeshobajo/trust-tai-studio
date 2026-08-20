@@ -7,6 +7,8 @@
  */
 
 import type {
+  AssetDirection,
+  AssetDirectionRequest,
   DirectorPlan,
   DirectorPlanRequest,
   ServiceResult,
@@ -18,6 +20,8 @@ export interface StudioAIProvider {
   readonly id: string;
   discoverStory(input: StoryDiscoveryRequest): Promise<ServiceResult<StoryDiscovery>>;
   planDirection(input: DirectorPlanRequest): Promise<ServiceResult<DirectorPlan>>;
+  /** First creative direction on a durable asset that already exists. */
+  directAsset(input: AssetDirectionRequest): Promise<ServiceResult<AssetDirection>>;
 }
 
 const notConfigured = <T>(): ServiceResult<T> => ({
