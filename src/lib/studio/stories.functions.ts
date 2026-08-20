@@ -28,6 +28,13 @@ export const createStoryFromDiscovery = createServerFn({ method: "POST" })
     return created;
   });
 
+export const updateStoryDiscovery = createServerFn({ method: "POST" })
+  .inputValidator((input: { storyId: UUID; discovery: StoryDiscovery }) => input)
+  .handler(async ({ data }): Promise<ServiceResult<{ storyId: UUID }>> => {
+    const { updateStory } = await import("./stories.server");
+    return updateStory(data);
+  });
+
 export const saveStoryOutputs = createServerFn({ method: "POST" })
   .inputValidator((input: { storyId: UUID; formats: OutputFormat[] }) => input)
   .handler(async ({ data }): Promise<ServiceResult<{ formats: OutputFormat[] }>> => {

@@ -170,6 +170,32 @@ export async function createStory(input: {
   };
 }
 
+/** Applies the human's edits to a discovered Story. */
+export async function updateStory(input: {
+  storyId: UUID;
+  discovery: StoryDiscovery;
+}): Promise<ServiceResult<{ storyId: UUID }>> {
+  const db = getServerSupabase();
+  if (!db) return noDb<{ storyId: UUID }>();
+
+  const { error } = await db
+    .from("stories")
+    .update({
+      title: input.discovery.title.trim(),
+      source_truth: input.discovery.sourceTruth,
+      human_truth: input.discovery.deeperHumanTruth,
+      deeper_truth: input.discovery.deeperHumanTruth,
+      premise: input.discovery.premise,
+      why_it_matters: input.discovery.whyItMatters,
+      recommended_angle: input.discovery.recommendedAngle,
+      creative_treatment: input.discovery.suggestedCreativeTreatment,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.storyId);
+  if (error) return dbError(`Studio could not save your changes (${error.message}).`);
+  return { ok: true, data: { storyId: input.storyId } };
+}
+
 /** Records the chosen formats as draft outputs of one Story. */
 export async function saveOutputs(input: {
   storyId: UUID;
