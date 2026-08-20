@@ -71,6 +71,10 @@ export interface StoryBeat {
 
 export interface SceneDirection {
   sceneNumber: number;
+  /** Persisted `public.scenes.id`, when this scene came from the database. */
+  sceneId?: UUID | null;
+  /** Short scene title, as the director names it. */
+  title?: string | undefined;
   narrativePurpose: string;
   emotion: string;
   characterRefs: string[];
@@ -90,6 +94,8 @@ export interface SceneDirection {
   durationSeconds: number;
   requiredAssetType: AssetKind;
   continuityNotes: string;
+  /** What the director wants the audience to know, withhold, or feel here. */
+  directorNotes?: string | undefined;
   status?: SceneStatus;
 }
 

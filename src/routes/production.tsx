@@ -1,15 +1,24 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Clapperboard, ChevronRight, ArrowDown } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { Clapperboard, ChevronRight, ArrowDown, Loader2, AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
 import { formatLabels, inProduction, statusLabels } from "@/lib/studio-data";
 import { planStore, type StoredPlan } from "@/lib/studio/plan-store";
+import { getStory } from "@/lib/studio/stories.functions";
+import type { ServiceError } from "@/lib/studio/ai-types";
 import { useScenePilot } from "@/lib/studio/use-scene-pilot";
 import { ScenePilotCard } from "@/components/studio/ScenePilotCard";
 import { cn } from "@/lib/utils";
 
-function DirectorPlanPanel({ stored }: { stored: StoredPlan }) {
+function DirectorPlanPanel({
+  stored,
+  persisted = false,
+}: {
+  stored: StoredPlan;
+  persisted?: boolean;
+}) {
   const { plan, discovery } = stored;
   const {
     state,
@@ -52,6 +61,9 @@ function DirectorPlanPanel({ stored }: { stored: StoredPlan }) {
       </dl>
 
       <p className="mt-6 text-[13px] text-muted-foreground">
+        {persisted
+          ? "Loaded from Studio — this Story and its scenes are saved. "
+          : "Local draft — this plan lives in this browser only. "}
         Pilot loop — one scene at a time. Studio AI directs; the production engine renders. Frames
         and clips below are real provider output, held as previews until they are stored in Studio.
       </p>
@@ -89,6 +101,10 @@ function DirectorPlanPanel({ stored }: { stored: StoredPlan }) {
 }
 
 export const Route = createFileRoute("/production")({
+  validateSearch: (search: Record<string, unknown>): { story?: string } => {
+    const story = typeof search["story"] === "string" ? (search["story"] as string) : undefined;
+    return story ? { story } : {};
+  },
   head: () => ({
     meta: [
       { title: "In Production — Trust Tai Studio" },
@@ -110,10 +126,57 @@ export const Route = createFileRoute("/production")({
 });
 
 function ProductionPage() {
+  const { story: storyId } = Route.useSearch();
+  const load = useServerFn(getStory);
   const [stored, setStored] = useState<StoredPlan | null>(null);
+  const [loading, setLoading] = useState(Boolean(storyId));
+  const [loadError, setLoadError] = useState<ServiceError | null>(null);
+
   useEffect(() => {
-    setStored(planStore.read());
-  }, []);
+    // A real Story is always read from Studio; localStorage is only a fallback
+    // for plans that were never persisted.
+    if (!storyId) {
+      setStored(planStore.read());
+      return;
+    }
+    let live = true;
+    setLoading(true);
+    setLoadError(null);
+    void (async () => {
+      try {
+        const result = await load({ data: { storyId } });
+        if (!live) return;
+        if (!result.ok) {
+          setLoadError(result.error);
+        } else if (result.data.plan) {
+          setStored({
+            savedAt: new Date().toISOString(),
+            discovery: result.data.discovery,
+            plan: result.data.plan,
+          });
+        } else {
+          setLoadError({
+            code: "invalid_input",
+            provider: "studio_storage",
+            message: "This Story has no directed scenes yet.",
+          });
+        }
+      } catch {
+        if (live) {
+          setLoadError({
+            code: "provider_error",
+            provider: "studio_storage",
+            message: "Studio could not load this Story.",
+          });
+        }
+      } finally {
+        if (live) setLoading(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [load, storyId]);
 
   return (
     <SuiteShell>
@@ -130,7 +193,26 @@ function ProductionPage() {
             </p>
           </header>
 
-          {stored ? <DirectorPlanPanel stored={stored} /> : null}
+          {loading ? (
+            <div className="mt-10 flex items-center gap-3 rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" strokeWidth={1.75} />
+              Loading this Story from Studio…
+            </div>
+          ) : null}
+
+          {loadError && !loading ? (
+            <div className="mt-10 flex gap-3 rounded-2xl border border-warning/30 bg-warning/5 p-6">
+              <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" strokeWidth={2} />
+              <div className="text-sm">
+                <div className="font-medium">This Story could not be opened</div>
+                <p className="mt-1 text-muted-foreground">{loadError.message}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {stored && !loading ? (
+            <DirectorPlanPanel stored={stored} persisted={Boolean(storyId)} />
+          ) : null}
 
           <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {inProduction.map((story) => {

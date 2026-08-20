@@ -66,7 +66,8 @@ create table if not exists public.stories (
   studio_id uuid references public.studios(id) on delete cascade,
   world_id uuid references public.worlds(id) on delete cascade,
   title text not null,
-  status text not null default 'drafting',
+  -- allowed: draft | in_production | ready_for_approval | approved | archived
+  status text not null default 'draft',
   source_truth text,
   deeper_truth text,
   human_truth text,
@@ -99,7 +100,8 @@ create table if not exists public.story_outputs (
   id uuid primary key default gen_random_uuid(),
   story_id uuid not null references public.stories(id) on delete cascade,
   format text not null,
-  status text not null default 'drafting',
+  -- allowed: draft | generating | approved | published
+  status text not null default 'draft',
   title text,
   body text,
   metadata jsonb,

@@ -220,7 +220,7 @@ export function useScenePilot(plan: DirectorPlan) {
         result = await submitImage({
           data: {
             storyId: plan.storyId ?? null,
-            sceneId: null,
+            sceneId: scene.sceneId ?? null,
             worldId: null,
             sceneNumber: scene.sceneNumber,
             scenePrompt: prompt,
@@ -281,7 +281,7 @@ export function useScenePilot(plan: DirectorPlan) {
         result = await submitVideo({
           data: {
             storyId: plan.storyId ?? null,
-            sceneId: null,
+            sceneId: scene.sceneId ?? null,
             worldId: null,
             sceneNumber: scene.sceneNumber,
             scenePrompt: prompt,
