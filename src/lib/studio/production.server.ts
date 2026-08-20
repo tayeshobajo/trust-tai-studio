@@ -19,6 +19,7 @@ import type {
 } from "./ai-types";
 import type { UUID } from "./types";
 import { getServerSupabase, NO_DATABASE_NOTE } from "./db.server";
+import { resolveStudioContext } from "./studio-config.server";
 
 export interface RecordTaskInput {
   task: GenerationTask;
