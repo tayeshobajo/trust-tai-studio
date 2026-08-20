@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Clapperboard, ChevronRight, ArrowDown } from "lucide-react";
+import { Clapperboard, ChevronRight, ArrowDown, Loader2, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
 import { formatLabels, inProduction, statusLabels } from "@/lib/studio-data";
 import { planStore, type StoredPlan } from "@/lib/studio/plan-store";
 import type { SceneStatus } from "@/lib/studio/ai-types";
+import { useSceneGeneration, type SceneRun } from "@/lib/studio/use-scene-generation";
 import { cn } from "@/lib/utils";
 
 const sceneStatusLabels: Record<SceneStatus, string> = {
@@ -16,8 +17,18 @@ const sceneStatusLabels: Record<SceneStatus, string> = {
   approved: "Approved",
 };
 
+const runLabels: Record<SceneRun["phase"], string> = {
+  idle: "",
+  submitting: "Sending to the production engine…",
+  running: "Rendering…",
+  succeeded: "Render complete",
+  failed: "Render failed",
+};
+
 function DirectorPlanPanel({ stored }: { stored: StoredPlan }) {
   const { plan, discovery } = stored;
+  const { runs, start } = useSceneGeneration(plan, plan.storyId ?? null);
+
   return (
     <section className="mt-10 rounded-2xl border border-border bg-card p-6 shadow-tt lg:p-8">
       <div className="eyebrow flex items-center gap-2">
