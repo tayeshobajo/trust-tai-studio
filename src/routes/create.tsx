@@ -100,6 +100,7 @@ function CreateFlow() {
   const [signalId, setSignalId] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
+  const [note, setNote] = useState("");
   const [chosenFormats, setChosenFormats] = useState<OutputFormat[]>([]);
   const [thinking, setThinking] = useState(false);
   const [drafted, setDrafted] = useState(false);
@@ -107,10 +108,12 @@ function CreateFlow() {
   const signal = suiteSignals.find((s) => s.id === signalId) ?? null;
 
   const materialSummary = useMemo(() => {
-    if (kind === "signal" && signal) return `${signal.title} — ${signal.opportunity}`;
-    if (kind === "upload" && fileName) return fileName;
-    return material.trim();
-  }, [kind, signal, fileName, material]);
+    if (kind === "signal" && signal)
+      return [`${signal.title} — ${signal.opportunity}`, note.trim()].filter(Boolean).join(" · ");
+    if (kind === "upload" && fileName)
+      return [fileName, note.trim()].filter(Boolean).join(" · ");
+    return [material.trim(), note.trim()].filter(Boolean).join(" — ");
+  }, [kind, signal, fileName, material, note]);
 
   const canAdvance =
     (step === 0 && kind !== null) ||
@@ -286,23 +289,6 @@ function CreateFlow() {
                   </ul>
                 ) : null}
 
-                {kind !== "text" ? (
-                  <div className="mt-5">
-                    <label htmlFor="context" className="eyebrow">
-                      Anything to add?
-                    </label>
-                    <textarea
-                      id="context"
-                      rows={3}
-                      value={kind === "signal" || kind === "upload" ? "" : undefined}
-                      onChange={(e) =>
-                        setMaterial((prev) => (prev.includes("\n\n") ? prev : prev) + "")
-                      }
-                      placeholder="Optional context for Studio AI."
-                      className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-4 text-sm leading-relaxed outline-none focus:border-royal"
-                    />
-                  </div>
-                ) : null}
               </div>
             ) : null}
 

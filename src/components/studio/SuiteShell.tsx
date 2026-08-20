@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Home,
   PlusSquare,
@@ -25,14 +25,14 @@ interface NavItem {
 
 const primaryNav: NavItem[] = [
   { label: "Home", icon: Home, to: "/" },
-  { label: "Create", icon: PlusSquare },
-  { label: "Library", icon: FolderClosed },
+  { label: "Create", icon: PlusSquare, to: "/create" },
+  { label: "Library", icon: FolderClosed, to: "/library" },
 ];
 
 const productionNav: NavItem[] = [
   { label: "In Production", icon: Clapperboard },
-  { label: "Approvals", icon: CheckSquare, badge: "3" },
-  { label: "World", icon: Globe },
+  { label: "Approvals", icon: CheckSquare, badge: "3", to: "/approvals" },
+  { label: "World", icon: Globe, to: "/world" },
 ];
 
 function NavRow({ item, active = false }: { item: NavItem; active?: boolean }) {
@@ -75,6 +75,8 @@ function NavRow({ item, active = false }: { item: NavItem; active?: boolean }) {
 }
 
 export function SuiteShell({ children }: { children: ReactNode }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex min-h-screen w-full max-w-[1600px]">
@@ -96,12 +98,12 @@ export function SuiteShell({ children }: { children: ReactNode }) {
 
           <nav className="mt-8 flex flex-1 flex-col gap-1">
             {primaryNav.map((item) => (
-              <NavRow key={item.label} item={item} active={item.label === "Home"} />
+              <NavRow key={item.label} item={item} active={item.to === pathname} />
             ))}
 
             <div className="eyebrow mt-6 mb-1 px-3">Production</div>
             {productionNav.map((item) => (
-              <NavRow key={item.label} item={item} />
+              <NavRow key={item.label} item={item} active={item.to === pathname} />
             ))}
 
             <div className="my-4 h-px bg-border" />
@@ -137,12 +139,12 @@ export function SuiteShell({ children }: { children: ReactNode }) {
                 </div>
               </div>
             </div>
-            <button
-              type="button"
+            <Link
+              to="/world"
               className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-royal hover:underline"
             >
               View World <ChevronRight className="size-3" />
-            </button>
+            </Link>
           </div>
 
           <div className="mt-4 flex items-center gap-3 border-t border-border pt-4">
