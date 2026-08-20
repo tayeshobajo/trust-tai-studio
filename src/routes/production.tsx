@@ -1,8 +1,90 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Clapperboard, ChevronRight } from "lucide-react";
+import { Clapperboard, ChevronRight, ArrowDown } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
 import { formatLabels, inProduction, statusLabels } from "@/lib/studio-data";
+import { planStore, type StoredPlan } from "@/lib/studio/plan-store";
+import type { SceneStatus } from "@/lib/studio/ai-types";
+import { cn } from "@/lib/utils";
+
+const sceneStatusLabels: Record<SceneStatus, string> = {
+  planned: "Planned",
+  ready_to_generate: "Ready to generate",
+  generating: "Generating",
+  review: "In review",
+  approved: "Approved",
+};
+
+function DirectorPlanPanel({ stored }: { stored: StoredPlan }) {
+  const { plan, discovery } = stored;
+  return (
+    <section className="mt-10 rounded-2xl border border-border bg-card p-6 shadow-tt lg:p-8">
+      <div className="eyebrow flex items-center gap-2">
+        <Clapperboard className="size-4 text-royal" strokeWidth={1.6} />
+        Director plan
+      </div>
+      <h2 className="mt-3 font-display text-2xl leading-tight">{discovery.title}</h2>
+      <p className="mt-3 max-w-2xl text-[15px] leading-relaxed">{plan.filmIntent}</p>
+
+      <dl className="mt-6 grid gap-4 border-t border-border pt-6 sm:grid-cols-3">
+        {[
+          ["Emotional arc", plan.emotionalArc],
+          ["Visual arc", plan.visualArc],
+          ["Pacing", plan.pacing],
+        ].map(([label, value]) => (
+          <div key={label}>
+            <dt className="eyebrow">{label}</dt>
+            <dd className="mt-1 text-sm leading-relaxed text-muted-foreground">{value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <ol className="mt-8 space-y-3">
+        {plan.scenes.map((scene, i) => {
+          const status: SceneStatus = scene.status ?? "planned";
+          const prev = plan.scenes[i - 1];
+          const next = plan.scenes[i + 1];
+          return (
+            <li key={scene.sceneNumber}>
+              <article className="rounded-xl border border-border p-5">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    Scene {String(scene.sceneNumber).padStart(2, "0")}
+                  </span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 text-[11px]",
+                      status === "approved"
+                        ? "bg-royal/10 text-royal"
+                        : "bg-secondary text-muted-foreground",
+                    )}
+                  >
+                    {sceneStatusLabels[status]}
+                  </span>
+                  <span className="ml-auto font-mono text-[11px] text-muted-foreground">
+                    {scene.durationSeconds}s · {scene.requiredAssetType}
+                  </span>
+                </div>
+                <p className="mt-2 text-[15px] leading-relaxed">{scene.narrativePurpose}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {prev ? `From ${prev.transitionOut} — ` : "Opens on "}
+                  {scene.transitionIn}
+                  {next ? ` — into ${scene.transitionOut}` : " — closes the film"}
+                </p>
+              </article>
+              {next ? (
+                <div className="flex justify-center py-1 text-muted-foreground/60">
+                  <ArrowDown className="size-4" strokeWidth={1.5} />
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
 
 export const Route = createFileRoute("/production")({
   head: () => ({
@@ -26,6 +108,11 @@ export const Route = createFileRoute("/production")({
 });
 
 function ProductionPage() {
+  const [stored, setStored] = useState<StoredPlan | null>(null);
+  useEffect(() => {
+    setStored(planStore.read());
+  }, []);
+
   return (
     <SuiteShell>
       <div className="wash-royal">
@@ -40,6 +127,8 @@ function ProductionPage() {
               formats.
             </p>
           </header>
+
+          {stored ? <DirectorPlanPanel stored={stored} /> : null}
 
           <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {inProduction.map((story) => {
