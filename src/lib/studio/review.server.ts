@@ -18,6 +18,23 @@ const noDb = (): ServiceResult<ReviewOutcome> => ({
   error: { code: "provider_not_configured", provider: "studio_storage", message: NO_DATABASE_NOTE },
 });
 
+/**
+ * Deterministic, server-side classification of a review note. The producer is
+ * never asked to categorise their own feedback; we infer it so the memory is
+ * usable later, and fall back to `other` rather than guessing.
+ */
+export function classifyFeedback(text: string): "visual" | "continuity" | "story" | "world" | "other" {
+  const t = text.toLowerCase();
+  if (/\b(continuity|the same|changed|different (face|person)|character (changed|is)|wardrobe|outfit|prop)\b/.test(t))
+    return "continuity";
+  if (/\b(camera|light(ing)?|colou?r|frame|framing|composition|shot|angle|move|moving|left to right|texture|grain)\b/.test(t))
+    return "visual";
+  if (/\b(world|canon|trust tai|brand|feel like|tone|doesn'?t feel|does not feel)\b/.test(t)) return "world";
+  if (/\b(story|opening|reveal|reveals|lesson|pacing|explain(s|ing)?|discover|ending|beat)\b/.test(t))
+    return "story";
+  return "other";
+}
+
 async function reconcileStory(
   db: NonNullable<ReturnType<typeof getServerSupabase>>,
   storyId: UUID | null,
