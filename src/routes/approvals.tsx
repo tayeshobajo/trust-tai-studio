@@ -305,17 +305,26 @@ function StoryReviewCard({ story, onDone }: { story: StoryReviewItem; onDone: ()
 
 function ApprovalsPage() {
   const fetchQueue = useServerFn(listReviewQueue);
+  const fetchStories = useServerFn(listStoryQueue);
   const queryClient = useQueryClient();
   const { data, isPending } = useQuery({
     queryKey: ["studio", "review-queue"],
     queryFn: () => fetchQueue(),
   });
+  const storyQuery = useQuery({
+    queryKey: ["studio", "story-review-queue"],
+    queryFn: () => fetchStories(),
+  });
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["studio", "review-queue"] });
   };
+  const invalidateStories = () => {
+    void queryClient.invalidateQueries({ queryKey: ["studio", "story-review-queue"] });
+  };
 
   const items = data?.ok ? data.data : [];
+  const stories = storyQuery.data?.ok ? storyQuery.data.data : [];
 
   return (
     <SuiteShell>
@@ -328,6 +337,25 @@ function ApprovalsPage() {
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
             Work that is stored in Studio and waiting on a human decision.
           </p>
+
+          {stories.length > 0 ? (
+            <section className="mt-10">
+              <h2 className="font-display text-2xl">Directed Stories</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Stories with a Director Plan, waiting to move forward.
+              </p>
+              <div className="mt-4 space-y-4">
+                {stories.map((story) => (
+                  <StoryReviewCard
+                    key={story.storyId}
+                    story={story}
+                    onDone={invalidateStories}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
 
           {isPending ? (
             <p className="mt-8 flex items-center gap-2 font-mono text-[12px] text-muted-foreground">
