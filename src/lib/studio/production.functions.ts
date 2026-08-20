@@ -8,7 +8,12 @@
 
 import { createServerFn } from "@tanstack/react-start";
 
-import type { AssetKind, TrackedGenerationTask } from "./ai-types";
+import type {
+  AssetKind,
+  GenerationTask,
+  ServiceResult,
+  TrackedGenerationTask,
+} from "./ai-types";
 import type { UUID } from "./types";
 
 export interface SceneGenerationRequest {
@@ -47,8 +52,8 @@ async function track(
   input: SceneGenerationRequest,
   assetType: AssetKind,
   settings: Record<string, unknown>,
-  result: Awaited<ReturnType<(typeof import("./runway.server"))["productionEngine"]["generateImage"]>>,
-) {
+  result: ServiceResult<GenerationTask>,
+): Promise<ServiceResult<TrackedGenerationTask>> {
   if (!result.ok) return result;
   const { recordGenerationStart } = await import("./production.server");
   return {
