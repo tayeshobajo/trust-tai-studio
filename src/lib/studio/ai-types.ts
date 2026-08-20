@@ -149,3 +149,27 @@ export interface TextToVideoRequest extends GenerateImageRequest {
   durationSeconds?: number;
   motionDirection?: string;
 }
+
+/* ---------------- Production tracking (persisted) ---------------- */
+
+/** Lifecycle of a generated asset row in `public.assets`. */
+export type AssetStatus = "queued" | "generating" | "ready" | "failed";
+
+/**
+ * What a production server function returns: the provider task plus what the
+ * database actually recorded. `persisted: false` is an honest state, never a
+ * silent failure.
+ */
+export interface TrackedGenerationTask {
+  task: GenerationTask;
+  /** Row id in `public.assets`, when persistence is available. */
+  assetId: UUID | null;
+  assetStatus: AssetStatus;
+  persisted: boolean;
+  /** Human-readable reason when `persisted` is false. */
+  persistenceNote: string | null;
+  /** Scene status after this transition, when a scene was addressed. */
+  sceneStatus: SceneStatus | null;
+  /** Story status after this transition, when a story was addressed. */
+  storyStatus: string | null;
+}
