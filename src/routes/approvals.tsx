@@ -1,13 +1,21 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { CheckCircle2, Clapperboard, Loader2, Sparkles } from "lucide-react";
+import { CheckCircle2, Clapperboard, Film, Loader2, Sparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
+import { AssetMemory } from "@/components/studio/AssetMemory";
 import { listReviewQueue } from "@/lib/studio/assets.functions";
 import { approveAsset, requestChanges } from "@/lib/studio/review.functions";
+import {
+  approveDirectedStory,
+  listStoryQueue,
+  rejectDirectedStory,
+} from "@/lib/studio/story-review.functions";
+import { formatLabels } from "@/lib/studio-data";
+import type { StoryReviewItem } from "@/lib/studio/story-review.server";
 import type { StudioAssetSummary } from "@/lib/studio/assets.server";
 
 export const Route = createFileRoute("/approvals")({
