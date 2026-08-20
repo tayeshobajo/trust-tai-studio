@@ -213,8 +213,8 @@ function ApprovalsPage() {
                 environment variables to this environment and the queue will populate itself:
               </p>
               <ul className="mt-3 space-y-1 font-mono text-[12px] text-muted-foreground">
-                <li>SUPABASE_URL</li>
-                <li>SUPABASE_SERVICE_ROLE_KEY</li>
+                <li>STUDIO_SUPABASE_URL</li>
+                <li>STUDIO_SUPABASE_SERVICE_ROLE_KEY</li>
               </ul>
             </div>
           ) : items.length === 0 ? (
