@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
+import { StudioAIStatus } from "@/components/studio/StudioAIStatus";
 import {
   activeWorld,
   formatLabels,
@@ -124,6 +125,10 @@ function StudioHome() {
               <footer className="eyebrow mt-2">Trust Tai World</footer>
             </blockquote>
           </section>
+
+          <StudioAIStatus />
+
+
 
           {/* Primary creation input */}
           <section className="mt-10 rounded-2xl border border-border bg-card p-6 shadow-tt-md lg:p-8">

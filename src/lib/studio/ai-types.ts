@@ -204,3 +204,36 @@ export interface ReviewOutcome {
   isCanon: boolean;
 }
 
+/* ---------------- Studio AI: creative direction on a durable asset ---------------- */
+
+export interface AssetDirectionRequest {
+  world: WorldContext;
+  storyTitle: string | null;
+  sceneNumber: number | null;
+  /** The direction the scene was generated from. */
+  scenePrompt: string | null;
+  assetType: string;
+  /** Feedback already recorded against this asset, oldest first. */
+  priorFeedback: string[];
+}
+
+export interface AssetDirection {
+  /** One-line read on what this frame is actually saying. */
+  direction: string;
+  whatWorks: string;
+  whatToChange: string;
+  /** What the next shot should do to earn its place. */
+  nextShot: string;
+}
+
+/** A durable creative-memory row as the UI reads it. */
+export interface CreativeMemoryEntry {
+  id: UUID;
+  feedback: string;
+  classification: string | null;
+  disposition: string | null;
+  createdAt: string | null;
+  /** True when Studio AI wrote this entry rather than a person. */
+  fromStudioAI: boolean;
+}
+

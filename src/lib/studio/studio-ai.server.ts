@@ -7,6 +7,8 @@
  */
 
 import type {
+  AssetDirection,
+  AssetDirectionRequest,
   DirectorPlan,
   DirectorPlanRequest,
   ServiceResult,
@@ -18,6 +20,8 @@ export interface StudioAIProvider {
   readonly id: string;
   discoverStory(input: StoryDiscoveryRequest): Promise<ServiceResult<StoryDiscovery>>;
   planDirection(input: DirectorPlanRequest): Promise<ServiceResult<DirectorPlan>>;
+  /** First creative direction on a durable asset that already exists. */
+  directAsset(input: AssetDirectionRequest): Promise<ServiceResult<AssetDirection>>;
 }
 
 const notConfigured = <T>(): ServiceResult<T> => ({
@@ -185,6 +189,20 @@ const directorSchema = strictObject({
   scenes: { type: "array", items: sceneSchema },
 });
 
+const assetDirectionSchema = strictObject({
+  direction: str,
+  whatWorks: str,
+  whatToChange: str,
+  nextShot: str,
+});
+
+const ASSET_DIRECTION_SYSTEM = `You are Studio AI, creative director of Trust Tai Studio, reviewing one piece of finished work.
+See the person before the problem. Look for the deeper human truth, not a marketing angle. The audience is the hero; the guide reveals, it does not rescue.
+Do not force World symbols into the frame, do not package the lesson early, and do not use generic AI phrasing.
+Be concrete about craft: light, framing, wardrobe, continuity, rhythm, what the audience knows at this moment.
+Respond with JSON only.`;
+
+
 export const openAIStudioAIProvider: StudioAIProvider = {
   id: "openai",
 
@@ -244,6 +262,36 @@ export const openAIStudioAIProvider: StudioAIProvider = {
     return result.ok
       ? { ok: true, data: result.data as DirectorPlan }
       : (result as ServiceResult<DirectorPlan>);
+  },
+
+  async directAsset(input) {
+    const apiKey = process.env["OPENAI_API_KEY"];
+    if (!apiKey) return notConfigured<AssetDirection>();
+
+    const user = [
+      worldPreamble(input.world),
+      `Story: ${input.storyTitle ?? "Untitled"}${
+        input.sceneNumber != null ? ` · Scene ${input.sceneNumber}` : ""
+      } · ${input.assetType}.`,
+      input.scenePrompt
+        ? `The direction this frame was made from:\n${input.scenePrompt.slice(0, 2000)}`
+        : "No scene direction was recorded for this frame.",
+      input.priorFeedback.length
+        ? `What the World has already learned here:\n- ${input.priorFeedback.slice(0, 6).join("\n- ")}`
+        : "No creative memory exists for this frame yet.",
+      "Give the first creative direction on this piece of work. Be specific and restrained; no praise, no marketing language.",
+    ].join("\n\n");
+
+    const result = await callOpenAI(
+      apiKey,
+      ASSET_DIRECTION_SYSTEM,
+      user,
+      "asset_direction",
+      assetDirectionSchema,
+    );
+    return result.ok
+      ? { ok: true, data: result.data as AssetDirection }
+      : (result as ServiceResult<AssetDirection>);
   },
 };
 
