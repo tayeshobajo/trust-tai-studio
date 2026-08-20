@@ -18,11 +18,12 @@ export function getServerSupabase(): SupabaseClient | null {
     process.env["STUDIO_SUPABASE_URL"] ??
     process.env["SUPABASE_URL"] ??
     process.env["VITE_SUPABASE_URL"];
+  // Service role only: an anon/publishable key would connect but silently fail
+  // every RLS-protected write, which reads as "persisted" when it is not.
   const key =
     process.env["STUDIO_SUPABASE_SERVICE_ROLE_KEY"] ??
-    process.env["SUPABASE_SERVICE_ROLE_KEY"] ??
-    process.env["SUPABASE_PUBLISHABLE_KEY"] ??
-    process.env["VITE_SUPABASE_PUBLISHABLE_KEY"];
+    process.env["SUPABASE_SERVICE_ROLE_KEY"];
+
   if (!url || !key) return null;
 
 
