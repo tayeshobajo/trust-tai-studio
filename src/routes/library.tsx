@@ -80,6 +80,7 @@ function LibraryCard({ asset }: { asset: StudioAssetSummary }) {
           Canon
           {asset.createdAt ? ` · ${formatDate(asset.createdAt)}` : ""}
         </p>
+        <AssetMemory assetId={asset.assetId} />
       </div>
     </article>
   );
