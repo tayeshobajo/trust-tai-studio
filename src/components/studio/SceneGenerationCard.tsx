@@ -55,7 +55,7 @@ export function SceneGenerationCard({
   onGenerate,
 }: {
   scene: SceneDirection;
-  run?: SceneRun;
+  run?: SceneRun | undefined;
   onGenerate: (scene: SceneDirection) => void;
 }) {
   const busy = run.phase === "submitting" || run.phase === "running";
