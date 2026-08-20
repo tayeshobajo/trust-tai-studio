@@ -120,19 +120,29 @@ export const checkGenerationStatus = createServerFn({ method: "POST" })
     const result = await productionEngine.checkStatus(data.providerTaskId);
     if (!result.ok) return result;
 
-    // Provider URLs are temporary; durability lands in `studio-assets`.
+    // Provider URLs are temporary: on success, copy the bytes into the private
+    // `studio-assets` bucket and serve a signed URL from Studio storage.
     let storagePath: string | null = null;
+    let durableUrl: string | null = null;
+    let durabilityNote: string | null = null;
     if (result.data.status === "succeeded") {
       const { persistGenerationOutput } = await import("./assets.server");
       const durable = await persistGenerationOutput(result.data);
-      if (durable.ok) storagePath = durable.data.storagePath;
+      if (durable.ok) {
+        storagePath = durable.data.storagePath;
+        durableUrl = durable.data.signedUrl;
+        durabilityNote = durable.data.note;
+      } else {
+        durabilityNote = durable.error.message;
+      }
     }
 
     const { recordGenerationProgress } = await import("./production.server");
     const tracked: TrackedGenerationTask = await recordGenerationProgress(
       result.data,
-      null,
+      durableUrl,
       storagePath,
+      durabilityNote,
     );
     return { ok: true as const, data: tracked };
   });

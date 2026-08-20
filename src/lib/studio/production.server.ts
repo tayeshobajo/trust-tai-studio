@@ -186,8 +186,9 @@ export async function recordGenerationProgress(
     .from("assets")
     .update({
       status: assetStatus,
-      // Provider URLs are temporary; storage_path is the durable source.
-      url: durableUrl ?? task.outputUrl,
+      // Provider URL is kept for provenance only; storage_path is the durable
+      // source and signed URLs are minted from it on demand.
+      url: task.outputUrl,
       storage_path: storagePath,
     })
     .eq("id", assetRow["id"] as string);
