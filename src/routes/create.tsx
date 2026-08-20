@@ -289,7 +289,23 @@ function CreateFlow() {
                   </ul>
                 ) : null}
 
+                {kind !== "text" ? (
+                  <div className="mt-5">
+                    <label htmlFor="context" className="eyebrow">
+                      Anything to add?
+                    </label>
+                    <textarea
+                      id="context"
+                      rows={3}
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder="Optional context for Studio AI."
+                      className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-4 text-sm leading-relaxed outline-none focus:border-royal"
+                    />
+                  </div>
+                ) : null}
               </div>
+
             ) : null}
 
             {/* Step 3 — Intent */}
