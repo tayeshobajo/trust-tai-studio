@@ -12,6 +12,15 @@ import type { AssetKind } from "./ai-types";
 
 export type PilotPhase = "idle" | "submitting" | "running" | "succeeded" | "failed";
 
+/** One entry in the visible generation timeline for a track. */
+export interface PilotEvent {
+  /** Short editorial label, e.g. "Sent to the production engine". */
+  label: string;
+  /** ISO timestamp of when it happened. */
+  at: string;
+  tone?: "neutral" | "good" | "bad";
+}
+
 export interface PilotTrack {
   phase: PilotPhase;
   /** Provider task id (Runway) for this track. */
@@ -34,13 +43,19 @@ export interface PilotTrack {
   error: { code: string; message: string } | null;
   startedAt: string | null;
   completedAt: string | null;
+  /** Visible timeline of what actually happened, newest last. */
+  events: PilotEvent[];
+  /** How many times the browser has asked the provider for a status. */
+  pollCount: number;
+  lastPolledAt: string | null;
 }
 
 export interface PilotReview {
-  phase: "idle" | "saving" | "approved" | "changes_requested" | "failed";
+  phase: "idle" | "saving" | "approved" | "changes_requested" | "rejected" | "failed";
   note: string | null;
   error: string | null;
 }
+
 
 export interface ScenePilotState {
   sceneNumber: number;
