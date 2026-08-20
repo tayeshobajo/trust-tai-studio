@@ -1,15 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 
 import { SuiteShell } from "@/components/studio/SuiteShell";
-import {
-  formatLabels,
-  libraryItems,
-  statusLabels,
-  type LibraryKind,
-  type StoryStatus,
-} from "@/lib/studio-data";
+import { listLibraryAssets } from "@/lib/studio/assets.functions";
+import type { StudioAssetSummary } from "@/lib/studio/assets.server";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/library")({
@@ -19,12 +16,12 @@ export const Route = createFileRoute("/library")({
       {
         name: "description",
         content:
-          "Browse and search every Story, draft, and asset in production across the Trust Tai World.",
+          "Approved, canon work in the Trust Tai World — every frame and film a human signed off on.",
       },
       { property: "og:title", content: "Library — Trust Tai Studio" },
       {
         property: "og:description",
-        content: "Story-first library of drafts, films, and assets in progress.",
+        content: "Story-first library of approved canon assets in the Trust Tai World.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -33,35 +30,81 @@ export const Route = createFileRoute("/library")({
   component: LibraryPage,
 });
 
-const kindFilters: { value: LibraryKind | "all"; label: string }[] = [
-  { value: "all", label: "Everything" },
-  { value: "story", label: "Stories" },
-  { value: "draft", label: "Drafts" },
-  { value: "asset", label: "Assets in progress" },
+type Kind = "all" | "image" | "video";
+
+const kindFilters: { value: Kind; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "image", label: "Images" },
+  { value: "video", label: "Films" },
 ];
 
-const statusTone: Record<StoryStatus, string> = {
-  drafting: "border-border text-muted-foreground",
-  in_production: "border-royal/30 bg-royal-soft text-royal",
-  ready_for_approval: "border-success/30 text-success",
-  live: "border-border bg-secondary text-foreground/80",
-};
+function formatDate(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function LibraryCard({ asset }: { asset: StudioAssetSummary }) {
+  return (
+    <article className="group overflow-hidden rounded-2xl border border-border bg-card shadow-tt transition-transform duration-300 hover:-translate-y-1">
+      {asset.previewUrl ? (
+        asset.assetType === "video" ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <video src={asset.previewUrl} controls playsInline className="aspect-video w-full object-cover" />
+        ) : (
+          <img
+            src={asset.previewUrl}
+            alt={asset.storyTitle ? `Canon frame from ${asset.storyTitle}` : "Canon frame"}
+            loading="lazy"
+            className="aspect-video w-full object-cover"
+          />
+        )
+      ) : (
+        <div className="flex aspect-video w-full items-center justify-center bg-secondary text-[12px] text-muted-foreground">
+          Preview link unavailable
+        </div>
+      )}
+      <div className="p-4">
+        <div className="eyebrow truncate">
+          {asset.assetType === "video" ? "Film" : "Image"}
+          {asset.worldName ? ` · ${asset.worldName}` : ""}
+        </div>
+        <h2 className="mt-0.5 truncate font-display text-lg leading-tight">
+          {asset.storyTitle ?? "Untitled Story"}
+        </h2>
+        <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+          {asset.sceneNumber != null ? `Scene ${String(asset.sceneNumber).padStart(2, "0")} · ` : ""}
+          Canon
+          {asset.createdAt ? ` · ${formatDate(asset.createdAt)}` : ""}
+        </p>
+      </div>
+    </article>
+  );
+}
 
 function LibraryPage() {
+  const fetchLibrary = useServerFn(listLibraryAssets);
   const [query, setQuery] = useState("");
-  const [kind, setKind] = useState<LibraryKind | "all">("all");
+  const [kind, setKind] = useState<Kind>("all");
+
+  const { data, isPending } = useQuery({
+    queryKey: ["studio", "library"],
+    queryFn: () => fetchLibrary(),
+  });
+
+  const items = data?.ok ? data.data : [];
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return libraryItems.filter(
+    return items.filter(
       (item) =>
-        (kind === "all" || item.kind === kind) &&
-        (q === "" ||
-          item.title.toLowerCase().includes(q) ||
-          item.note.toLowerCase().includes(q) ||
-          formatLabels[item.format].toLowerCase().includes(q)),
+        (kind === "all" || item.assetType === kind) &&
+        (q === "" || (item.storyTitle ?? "").toLowerCase().includes(q)),
     );
-  }, [query, kind]);
+  }, [items, kind, query]);
 
   return (
     <SuiteShell>
@@ -69,10 +112,11 @@ function LibraryPage() {
         <div className="mx-auto max-w-[1180px] px-6 pt-12 pb-20 lg:px-12">
           <div className="eyebrow">Library</div>
           <h1 className="mt-2 font-display text-[2.5rem] leading-[1.1] tracking-tight lg:text-[3rem]">
-            Everything the Studio has made or is making.
+            Everything the Studio has made real.
           </h1>
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-            Story-first. Drafts and assets live under the Story they belong to.
+            Approved, canon work in the Active World. Nothing appears here until a human signs it
+            off.
           </p>
 
           <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-center">
@@ -81,7 +125,7 @@ function LibraryPage() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search stories, drafts, and assets"
+                placeholder="Search approved work by Story"
                 aria-label="Search the Library"
                 className="h-12 w-full rounded-full border border-border bg-card pr-4 pl-11 text-sm outline-none focus:border-royal"
               />
@@ -105,56 +149,43 @@ function LibraryPage() {
             </div>
           </div>
 
-          <p className="mt-4 font-mono text-[11px] text-muted-foreground">
-            {results.length} item{results.length === 1 ? "" : "s"}
-          </p>
-
-          <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {results.map((item) => (
-              <article
-                key={item.id}
-                className="group flex gap-4 rounded-2xl border border-border bg-card p-4 shadow-tt transition-transform duration-300 hover:-translate-y-1"
-              >
-                <img
-                  src={item.image}
-                  alt=""
-                  width={512}
-                  height={512}
-                  loading="lazy"
-                  className="size-20 shrink-0 rounded-xl object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="eyebrow truncate">{formatLabels[item.format]}</div>
-                  <h2 className="mt-0.5 truncate font-display text-lg leading-tight">
-                    {item.title}
-                  </h2>
-                  <p className="truncate text-xs text-muted-foreground">{item.note}</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span
-                      className={cn(
-                        "rounded-full border px-2.5 py-0.5 text-[11px]",
-                        statusTone[item.status],
-                      )}
-                    >
-                      {statusLabels[item.status]}
-                    </span>
-                    <span className="font-mono text-[11px] text-muted-foreground">
-                      {item.updatedLabel}
-                    </span>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-
-          {results.length === 0 ? (
-            <div className="mt-4 rounded-2xl border border-dashed border-border p-12 text-center">
-              <p className="font-display text-xl">Nothing here yet.</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Try a different search, or start something new in Create.
+          {isPending ? (
+            <p className="mt-8 flex items-center gap-2 font-mono text-[12px] text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin" strokeWidth={1.8} />
+              Reading the Library…
+            </p>
+          ) : data && !data.ok ? (
+            <div className="mt-8 rounded-2xl border border-dashed border-border p-8">
+              <p className="font-display text-xl">Studio memory is not connected yet.</p>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                The Library reads approved assets from Studio storage. Add these server environment
+                variables and approved work will appear here:
               </p>
+              <ul className="mt-3 space-y-1 font-mono text-[12px] text-muted-foreground">
+                <li>SUPABASE_URL</li>
+                <li>SUPABASE_SERVICE_ROLE_KEY</li>
+              </ul>
             </div>
-          ) : null}
+          ) : (
+            <>
+              <p className="mt-4 font-mono text-[11px] text-muted-foreground">
+                {results.length} item{results.length === 1 ? "" : "s"}
+              </p>
+              <div className="mt-4 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                {results.map((asset) => (
+                  <LibraryCard key={asset.assetId} asset={asset} />
+                ))}
+              </div>
+              {results.length === 0 ? (
+                <div className="mt-4 rounded-2xl border border-dashed border-border p-12 text-center">
+                  <p className="font-display text-xl">Nothing approved yet.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Approve work in Approvals and it lands here as canon.
+                  </p>
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
     </SuiteShell>
