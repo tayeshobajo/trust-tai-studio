@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as CreateRouteImport } from './routes/create'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as ProductionRouteImport } from './routes/production'
 import { Route as WorldRouteImport } from './routes/world'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const LibraryRoute = LibraryRouteImport.update({
   path: '/library',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductionRoute = ProductionRouteImport.update({
+  id: '/production',
+  path: '/production',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WorldRoute = WorldRouteImport.update({
   id: '/world',
   path: '/world',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/approvals': typeof ApprovalsRoute
   '/create': typeof CreateRoute
   '/library': typeof LibraryRoute
+  '/production': typeof ProductionRoute
   '/world': typeof WorldRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/approvals': typeof ApprovalsRoute
   '/create': typeof CreateRoute
   '/library': typeof LibraryRoute
+  '/production': typeof ProductionRoute
   '/world': typeof WorldRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,23 @@ export interface FileRoutesById {
   '/approvals': typeof ApprovalsRoute
   '/create': typeof CreateRoute
   '/library': typeof LibraryRoute
+  '/production': typeof ProductionRoute
   '/world': typeof WorldRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/approvals' | '/create' | '/library' | '/world'
+  fullPaths:
+    '/' | '/approvals' | '/create' | '/library' | '/production' | '/world'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/approvals' | '/create' | '/library' | '/world'
-  id: '__root__' | '/' | '/approvals' | '/create' | '/library' | '/world'
+  to: '/' | '/approvals' | '/create' | '/library' | '/production' | '/world'
+  id:
+    | '__root__'
+    | '/'
+    | '/approvals'
+    | '/create'
+    | '/library'
+    | '/production'
+    | '/world'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +93,7 @@ export interface RootRouteChildren {
   ApprovalsRoute: typeof ApprovalsRoute
   CreateRoute: typeof CreateRoute
   LibraryRoute: typeof LibraryRoute
+  ProductionRoute: typeof ProductionRoute
   WorldRoute: typeof WorldRoute
 }
 
@@ -109,6 +127,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/production': {
+      id: '/production'
+      path: '/production'
+      fullPath: '/production'
+      preLoaderRoute: typeof ProductionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/world': {
       id: '/world'
       path: '/world'
@@ -124,6 +149,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApprovalsRoute: ApprovalsRoute,
   CreateRoute: CreateRoute,
   LibraryRoute: LibraryRoute,
+  ProductionRoute: ProductionRoute,
   WorldRoute: WorldRoute,
 }
 export const routeTree = rootRouteImport
