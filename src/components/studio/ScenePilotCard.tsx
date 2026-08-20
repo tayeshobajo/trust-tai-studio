@@ -220,6 +220,7 @@ export function ScenePilotCard({
         ) : null}
 
         {image.phase === "succeeded" && image.previewUrl ? (
+          <>
           <figure className="mt-3">
             <img
               src={image.durableUrl ?? image.previewUrl}
@@ -238,6 +239,7 @@ export function ScenePilotCard({
             onApprove={onApprove}
             onRequestChanges={onRequestChanges}
           />
+          </>
         ) : null}
       </div>
 
@@ -276,6 +278,7 @@ export function ScenePilotCard({
           ) : null}
 
           {video.phase === "succeeded" && video.previewUrl ? (
+            <>
             <figure className="mt-3">
               {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
               <video
@@ -295,6 +298,7 @@ export function ScenePilotCard({
               onApprove={onApprove}
               onRequestChanges={onRequestChanges}
             />
+            </>
           ) : null}
         </div>
       ) : null}
