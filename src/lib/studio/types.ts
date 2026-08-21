@@ -18,7 +18,24 @@ export type OutputFormat =
   | "visual_story"
   | "cinematic_film";
 
-export type StoryStatus = "drafting" | "in_production" | "ready_for_approval" | "live";
+/** Mirrors the live `stories.status` check constraint. */
+export type StoryStatus =
+  | "draft"
+  | "discovering"
+  | "in_production"
+  | "ready_for_approval"
+  | "approved"
+  | "published"
+  | "archived";
+
+/** Mirrors the live `story_outputs.status` check constraint. */
+export type StoryOutputStatus =
+  | "draft"
+  | "generating"
+  | "ready_for_approval"
+  | "approved"
+  | "published"
+  | "failed";
 
 export type SourceKind = "text" | "voice_note" | "upload" | "suite_signal" | "link";
 
@@ -69,7 +86,7 @@ export interface StoryOutput {
   id: UUID;
   storyId: UUID;
   format: OutputFormat;
-  status: StoryStatus;
+  status: StoryOutputStatus;
   body: string | null;
   createdAt: ISODate;
 }

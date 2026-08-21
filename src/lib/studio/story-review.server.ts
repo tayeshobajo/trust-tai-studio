@@ -6,9 +6,13 @@
  * and moves their status forward or back in Supabase, together with their
  * `story_outputs` rows.
  *
- * Allowed statuses are the ones the database actually enforces:
- *   stories.status       draft | in_production | ready_for_approval | approved | archived
- *   story_outputs.status draft | generating | approved | published
+ * Allowed statuses in the live database:
+ *   stories.status       draft | discovering | in_production | ready_for_approval |
+ *                        approved | published | archived
+ *   story_outputs.status draft | generating | ready_for_approval | approved |
+ *                        published | failed
+ * This module only moves between `in_production`, `ready_for_approval`,
+ * `approved` (stories) and `draft` / `approved` (outputs).
  */
 
 import type { ServiceResult } from "./ai-types";
