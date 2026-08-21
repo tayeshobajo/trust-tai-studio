@@ -15,7 +15,15 @@ import type { AssetDirection, CreativeMemoryEntry, ServiceResult } from "./ai-ty
 import type { UUID } from "./types";
 import { getServerSupabase, NO_DATABASE_NOTE } from "./db.server";
 
-const STUDIO_AI_DISPOSITION = "studio_ai_direction";
+/**
+ * Studio AI direction is an AI proposal, not a human verdict, so it is stored
+ * with the live-allowed disposition `experiment` (the DB check constraint
+ * allows only: observation, approved_pattern, rejected_pattern, canon_rule,
+ * experiment). Provenance is carried by a stable marker prefix in the feedback
+ * text rather than a new constrained value or extra schema.
+ */
+const STUDIO_AI_DISPOSITION = "experiment";
+const STUDIO_AI_MARKER = "[studio-ai:direction]";
 
 const noDb = <T>(): ServiceResult<T> => ({
   ok: false,
@@ -24,13 +32,15 @@ const noDb = <T>(): ServiceResult<T> => ({
 
 function toEntry(row: Record<string, unknown>): CreativeMemoryEntry {
   const disposition = (row["disposition"] as string | null) ?? null;
+  const rawFeedback = String(row["feedback"] ?? "");
+  const fromStudioAI = disposition === STUDIO_AI_DISPOSITION && rawFeedback.startsWith(STUDIO_AI_MARKER);
   return {
     id: row["id"] as UUID,
-    feedback: String(row["feedback"] ?? ""),
+    feedback: fromStudioAI ? rawFeedback.slice(STUDIO_AI_MARKER.length).trimStart() : rawFeedback,
     classification: (row["classification"] as string | null) ?? null,
     disposition,
     createdAt: (row["created_at"] as string | null) ?? null,
-    fromStudioAI: disposition === STUDIO_AI_DISPOSITION,
+    fromStudioAI,
   };
 }
 
@@ -118,7 +128,7 @@ export async function runAssetDirection(assetId: UUID): Promise<ServiceResult<As
 
   const direction = result.data;
   const memoryText = [
-    direction.direction,
+    `${STUDIO_AI_MARKER} ${direction.direction}`,
     `What works: ${direction.whatWorks}`,
     `What to change: ${direction.whatToChange}`,
     `Next shot: ${direction.nextShot}`,
