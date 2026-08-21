@@ -106,7 +106,8 @@ export const storyRepository: StoryRepository = {
       premise: s.premise,
       whyItMatters: null,
       recommendedAngle: null,
-      status: s.status,
+      // Legacy display seed uses "drafting"; the live DB canon is "draft".
+      status: s.status === "drafting" ? "draft" : s.status === "live" ? "published" : s.status,
       createdAt: new Date(0).toISOString(),
     }));
   },
