@@ -20,7 +20,8 @@ const dispositionLabels: Record<string, string> = {
   approved_pattern: "Approved",
   rejected_pattern: "Rejected",
   observation: "Change requested",
-  studio_ai_direction: "Studio AI direction",
+  canon_rule: "Canon rule",
+  experiment: "Experiment",
 };
 
 function MemoryRow({ entry }: { entry: CreativeMemoryEntry }) {
@@ -28,7 +29,9 @@ function MemoryRow({ entry }: { entry: CreativeMemoryEntry }) {
     <li className="border-t border-border pt-2 first:border-none first:pt-0">
       <div className="flex items-center gap-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
         {entry.fromStudioAI ? <Brain className="size-3" strokeWidth={1.8} /> : null}
-        {dispositionLabels[entry.disposition ?? ""] ?? entry.disposition ?? "Note"}
+        {entry.fromStudioAI
+          ? "Studio AI direction"
+          : (dispositionLabels[entry.disposition ?? ""] ?? entry.disposition ?? "Note")}
         {entry.classification ? ` · ${entry.classification}` : ""}
         {entry.createdAt
           ? ` · ${new Date(entry.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
